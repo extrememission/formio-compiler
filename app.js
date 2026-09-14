@@ -4,12 +4,31 @@ let currentFontSize = 14;
 
 // --- DB (IndexedDB) ---
 let db;
+const defaultTemplates = [
+    {
+        name: "Template: 10-Question T/F Quiz",
+        date: "System Default",
+        shorthand: "[panel] True or False Quiz\n\n+++ ![radio]\n- True\n- False\n1. Question One\n2. Question Two\n3. Question Three\n4. Question Four\n5. Question Five\n6. Question Six\n7. Question Seven\n8. Question Eight\n9. Question Nine\n10. Question Ten\n+++"
+    },
+    {
+        name: "Template: General Acknowledgement",
+        date: "System Default",
+        shorthand: "[panel] General Acknowledgement\n\n[content] <p style=\"margin-bottom: 15px;\">By checking the box below and providing my signature, I formally acknowledge that I have received, read, and fully understand the contents of this document. I agree to abide by the guidelines, procedures, and expectations outlined herein, and I understand that it is my responsibility to seek clarification on any points I do not understand.</p>\n\n![checkbox] I have read and understand the contents of this document.\n\n[table: 1x2] Signatures\n\n![signature] Employee Signature\n\n![date] Date Signed"
+    },
+    {
+        name: "Template: Jobsite Hazard Assessment",
+        date: "System Default",
+        shorthand: "[panel] Jobsite Hazard Assessment (JHA)\n\n[textfield] Project Name\n[textfield] Job Location\n![date] Date of Assessment\n![textfield] Supervisor / Competent Person\n\n[well] Required PPE\n[selectboxes] Personal Protective Equipment (PPE) Check\n- Hard Hat\n- Safety Glasses\n- Steel Toe Boots\n- High Visibility Vest\n- Gloves\n- Fall Protection\n- Hearing Protection\n\n[panel] Hazard Identification\n[content] <p>Please list the potential hazards identified for today's tasks and the control measures that will be implemented.</p>\n\n[repeat: 5] Hazard & Control Measure\n![textfield] Task / Activity\n![select] Hazard Type\n- Fall Hazard\n- Electrical\n- Struck-By\n- Caught-In/Between\n- Chemical / Hazardous Material\n- Ergonomic / Manual Lifting\n![textarea] Mitigation / Control Strategy\n\n[panel] Crew Sign-Off\n[content] <p>All crew members must sign below indicating they have been briefed on the hazards and controls.</p>\n\n[signature] Crew Member 1\n[signature] Crew Member 2\n[signature] Crew Member 3"
+    }
+];
+
 const initDB = () => {
     const request = indexedDB.open('FormioCompilerDB', 1);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
-            db.createObjectStore('favorites', { keyPath: 'id', autoIncrement: true });
+            const store = db.createObjectStore('favorites', { keyPath: 'id', autoIncrement: true });
+            defaultTemplates.forEach(template => store.add(template));
         }
     };
     request.onsuccess = (e) => { db = e.target.result; };
