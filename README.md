@@ -8,7 +8,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Command Palette Autocomplete:** Type / anywhere on a new line to instantly summon a Notion-style autocomplete menu to rapidly insert components without taking your hands off the keyboard.
 *   **Intelligent Container Stacking:** Nest Panels, Edit Grids, and Repeats infinitely deep. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
-*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Export your database as a JSON backup to port your favorites between devices.
+*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, and a Jobsite Hazard Assessment). Export your database as a JSON backup to port your favorites between devices.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in an optimized 2-column masonry grid.
 
 ---
