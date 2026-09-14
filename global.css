@@ -1,0 +1,154 @@
+:root {
+    --bg-main: #f4f6f8;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #f0f4f8;
+    --border: #e1e4e8;
+    --text-main: #24292e;
+    --text-muted: #6a737d;
+    --accent: #007acc; /* Standard neutral blue */
+    --accent-hover: #0098ff;
+    --danger: #d73a49;
+    --danger-hover: #cb2431;
+    --success: #28a745;
+    --input-bg: #ffffff;
+    --code-bg: #f6f8fa;
+}
+
+.theme-dark {
+    --bg-main: #111111; /* True black/dark neutral */
+    --bg-surface: #1e1e1e;
+    --bg-surface-hover: #2d2d2d;
+    --border: #333333;
+    --text-main: #e0e0e0;
+    --text-muted: #888888;
+    --accent: #007acc;
+    --accent-hover: #0098ff;
+    --danger: #f85149;
+    --danger-hover: #ff7b72;
+    --success: #3fb950;
+    --input-bg: #111111;
+    --code-bg: #111111;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0; padding: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    height: 100vh; display: flex; flex-direction: row; 
+}
+
+/* Main Layout & Resizer */
+.app-layout { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
+.left-pane { width: 450px; min-width: 350px; display: flex; flex-direction: column; background: var(--bg-surface); }
+.editor-panel { flex: 1; min-width: 300px; display: flex; flex-direction: column; background: var(--bg-main); }
+.resizer {
+    width: 3px; background: var(--border); cursor: col-resize; transition: background 0.2s;
+    display: flex; justify-content: center; align-items: center; z-index: 10;
+}
+.resizer:hover, .resizer:active { background: var(--accent); width: 4px; }
+
+/* Pane Headers */
+.panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.75rem 1.5rem; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+    min-height: 56px;
+}
+.panel-header h2 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-main); }
+
+/* Buttons */
+button { cursor: pointer; font-family: inherit; font-weight: 600; border-radius: 6px; border: none; padding: 0.5rem 1rem; transition: all 0.2s; }
+button i { margin-right: 5px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-text { background: transparent; color: var(--text-muted); }
+.btn-text:hover { background: var(--bg-surface-hover); color: var(--text-main); }
+.btn-text.text-danger { color: var(--danger); }
+.btn-text.text-danger:hover { background: rgba(248, 81, 73, 0.1); color: var(--danger); }
+.btn-icon { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); padding: 0; }
+.btn-icon:hover { color: var(--text-main); }
+
+/* Sleek Font Controls */
+.font-controls { 
+    display: flex; align-items: center; background: var(--input-bg); 
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-right: 15px; 
+}
+.font-controls button { 
+    background: transparent; border: none; color: var(--text-muted); 
+    font-size: 0.85rem; font-weight: 700; padding: 6px 10px; border-radius: 0; 
+    border-right: 1px solid var(--border); margin: 0;
+}
+.font-controls button i { margin: 0; }
+.font-controls button:last-child { border-right: none; }
+.font-controls button:hover { color: var(--text-main); background: var(--bg-surface-hover); }
+
+/* Compiler UI Specifics */
+#shorthand-input { 
+    flex: 1; width: 100%; resize: none; border: none; 
+    background: var(--code-bg); color: var(--text-main); 
+    padding: 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: 14px; 
+    line-height: 1.6; outline: none; 
+}
+
+/* Autocomplete Popup */
+#ac-popup {
+    position: absolute;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    z-index: 500;
+    max-height: 250px;
+    overflow-y: auto;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+}
+#ac-popup.hidden {
+    display: none;
+}
+.ac-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+.ac-item:last-child {
+    border-bottom: none;
+}
+.ac-item:hover, .ac-item.selected {
+    background: var(--bg-surface-hover);
+}
+.ac-item-label {
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 2px;
+}
+.ac-item-syntax {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 1; transition: opacity 0.2s; }
+.modal-overlay.hidden { opacity: 0; pointer-events: none; }
+.modal-content { background: var(--bg-surface); border: 2px solid var(--border); border-radius: 8px; width: 960px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
+.modal-header h2 { margin: 0; color: var(--accent); display: flex; gap: 10px; align-items: center; font-size: 1.2rem; }
+.modal-body { padding: 1.5rem; overflow-y: auto; }
+.snippet-columns { column-count: 2; column-gap: 2rem; }
+.snippet-category { margin-bottom: 2rem; break-inside: avoid; page-break-inside: avoid; }
+.snippet-category h3 { margin-top: 0; margin-bottom: 10px; font-size: 0.95rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.snippet-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; background: var(--input-bg); }
+.snippet-row code { font-family: 'JetBrains Mono', monospace; color: var(--text-main); font-size: 0.9rem; }
+.btn-insert { background: rgba(0, 122, 204, 0.1); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-insert:hover { background: var(--accent); color: #fff; }
+
+/* Ace Editor Box */
+#json-editor { flex: 1; }

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form.io Compiler</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="global.css">
+</head>
+<body class="theme-dark">
+    
+    <main class="app-layout">
+        <!-- LEFT: SHORTHAND EDITOR -->
+        <section class="left-pane" id="left-pane" style="width: 45%; min-width: 400px;">
+            <div class="panel-header">
+                <h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> Form.io Compiler</h2>
+                <div class="header-actions" style="display: flex; gap: 5px; align-items: center;">
+                    <button id="btn-save-fav" class="btn-text" title="Save as Favorite"><i class="fa-regular fa-star"></i></button>
+                    <button id="btn-list-favs" class="btn-text" title="My Favorites"><i class="fa-solid fa-folder-open"></i></button>
+                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
+                    <button id="btn-help" class="btn-text" title="Snippet Library"><i class="fa-solid fa-book"></i></button>
+                    <button id="btn-theme" class="btn-text" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
+                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
+                    <button id="btn-clear" class="btn-text text-danger" title="Clear Editor"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            <textarea id="shorthand-input" spellcheck="false" placeholder="Type your shorthand here..."></textarea>
+            
+            <!-- Autocomplete Popup -->
+            <div id="ac-popup" class="hidden"></div>
+        </section>
+
+        <!-- DRAG RESIZER -->
+        <div class="resizer" id="drag-resizer"></div>
+
+        <!-- RIGHT: OUTPUT -->
+        <section class="editor-panel">
+            <div class="panel-header">
+                <h2>Generated JSON</h2>
+                <div class="editor-actions" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="text" id="schema-name" placeholder="schema_name" style="background: var(--bg-color); color: var(--text); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 130px; outline: none;">
+                    <button id="btn-download" class="btn-text" title="Download Schema"><i class="fa-solid fa-download"></i></button>
+                    <button id="btn-copy" class="btn-text" title="Copy Schema"><i class="fa-regular fa-copy"></i></button>
+                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></div>
+                    <div class="font-controls" style="margin-left: 0;">
+                        <button id="btn-font-dec" title="Decrease Font Size">A-</button>
+                        <button id="btn-font-inc" title="Increase Font Size">A+</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Ace Editor Container -->
+            <div id="json-editor"></div>
+        </section>
+    </main>
+
+    <!-- Favorites Modal -->
+    <div id="fav-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-star"></i> My Favorites</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="file" id="file-import-favs" accept=".json" style="display: none;">
+                    <button id="btn-import-favs" class="btn-primary" style="font-size: 12px; padding: 4px 8px;" title="Import Favorites Backup"><i class="fa-solid fa-upload"></i> Import</button>
+                    <button id="btn-export-favs" class="btn-primary" style="font-size: 12px; padding: 4px 8px;" title="Export Favorites Backup"><i class="fa-solid fa-download"></i> Export</button>
+                    <button id="btn-close-fav" class="btn-icon" title="Close" style="margin-left: 10px;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="fav-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Snippet Library Modal -->
+    <div id="snippet-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-book"></i> Component Snippet Library</h2>
+                <button id="btn-close-modal" class="btn-icon" title="Close"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body snippet-columns">
+                
+                <div class="snippet-category">
+                    <h3>🧱 Layout & Containers</h3>
+                    <div class="snippet-row"><code>[panel] Panel</code> <button class="btn-insert" data-snippet="[panel] Panel\n">Insert</button></div>
+                    <div class="snippet-row"><code>[repeat: 5] Repeat_Group</code> <button class="btn-insert" data-snippet="[repeat: 5] Repeat_Group\n">Insert</button></div>
+                    <div class="snippet-row"><code>[editgrid] Edit_Grid</code> <button class="btn-insert" data-snippet="[editgrid] Edit_Grid\n">Insert</button></div>
+                    <div class="snippet-row"><code>[datagrid] Data_Grid</code> <button class="btn-insert" data-snippet="[datagrid] Data_Grid\n">Insert</button></div>
+                    <div class="snippet-row"><code>[well] Well</code> <button class="btn-insert" data-snippet="[well] Well\n">Insert</button></div>
+                    <div class="snippet-row"><code>[table: 2x2] Table</code> <button class="btn-insert" data-snippet="[table: 2x2] Table\n">Insert</button></div>
+                </div>
+
+                <div class="snippet-category">
+                    <h3>📝 Basic Inputs</h3>
+                    <div class="snippet-row"><code>[textfield] Text_Field</code> <button class="btn-insert" data-snippet="[textfield] Text_Field\n">Insert</button></div>
+                    <div class="snippet-row"><code>[textarea] Text_Area</code> <button class="btn-insert" data-snippet="[textarea] Text_Area\n">Insert</button></div>
+                    <div class="snippet-row"><code>[phoneNumber] Phone_Number</code> <button class="btn-insert" data-snippet="[phoneNumber] Phone_Number\n">Insert</button></div>
+                    <div class="snippet-row"><code>[datetime] Date_Time</code> <button class="btn-insert" data-snippet="[datetime] Date_Time\n">Insert</button></div>
+                    <div class="snippet-row"><code>[date] Date</code> <button class="btn-insert" data-snippet="[date] Date\n">Insert</button></div>
+                    <div class="snippet-row"><code>[number] Number</code> <button class="btn-insert" data-snippet="[number] Number\n">Insert</button></div>
+                    <div class="snippet-row"><code>[number: 1-5] Number</code> <button class="btn-insert" data-snippet="[number: 1-5] Number\n">Insert</button></div>
+                    <div class="snippet-row"><code>[email] Email</code> <button class="btn-insert" data-snippet="[email] Email\n">Insert</button></div>
+                </div>
+
+                <div class="snippet-category">
+                    <h3>🔘 Multiple Choice (Auto-Locked)</h3>
+                    <div class="snippet-row"><code>[radio] Radio<br/>- Choice 1</code> <button class="btn-insert" data-snippet="[radio] Radio_Question\n- Choice 1\n- Choice 2\n">Insert</button></div>
+                    <div class="snippet-row"><code>[select] Select<br/>- Choice 1</code> <button class="btn-insert" data-snippet="[select] Select_Question\n- Choice 1\n- Choice 2\n">Insert</button></div>
+                    <div class="snippet-row"><code>[selectboxes] Checkboxes<br/>- Choice 1</code> <button class="btn-insert" data-snippet="[selectboxes] Checkboxes_Question\n- Choice 1\n- Choice 2\n">Insert</button></div>
+                    <div class="snippet-row"><code>[checkbox] Checkbox</code> <button class="btn-insert" data-snippet="[checkbox] Checkbox\n">Insert</button></div>
+                    <div class="snippet-row"><code>[signature] Signature</code> <button class="btn-insert" data-snippet="[signature] Signature\n">Insert</button></div>
+                </div>
+
+                <div class="snippet-category">
+                    <h3>🖼️ HTML & Content</h3>
+                    <div class="snippet-row"><code>[html: h2] HTML</code> <button class="btn-insert" data-snippet="[html: h2] HTML\n">Insert</button></div>
+                    <div class="snippet-row"><code>[content] &lt;p&gt;Content&lt;/p&gt;</code> <button class="btn-insert" data-snippet="[content] <p>Content</p>\n">Insert</button></div>
+                </div>
+
+                <div class="snippet-category">
+                    <h3>🚀 Superpowers</h3>
+                    <div class="snippet-row"><code>![textfield] Required</code> <button class="btn-insert" data-snippet="![textfield] Required\n">Insert</button></div>
+                    <div class="snippet-row"><code>[print] Print</code> <button class="btn-insert" data-snippet="[print] Print\n">Insert</button></div>
+                    <div class="snippet-row">
+                        <code>+++ ![radio]<br/>- Choice 1</code>
+                        <button class="btn-insert" data-snippet="+++ ![radio]\n- Choice 1\n- Choice 2\nQuestion_1\nQuestion_2\n+++\n">Insert</button>
+                    </div>
+                </div>         </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Ace Editor CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
