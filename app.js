@@ -77,37 +77,172 @@ document.getElementById('btn-font-dec').addEventListener('click', () => {
     editor.setFontSize(currentFontSize + "px");
 });
 
-// --- Drag Resizer ---
-document.addEventListener('DOMContentLoaded', () => {
-    const resizer = document.getElementById('drag-resizer');
-    const leftPane = document.getElementById('left-pane');
-    
-    if (resizer && leftPane) {
-        let isResizing = false;
-        resizer.addEventListener('mousedown', (e) => {
-            isResizing = true;
-            document.body.style.cursor = 'col-resize';
-            resizer.style.background = 'var(--accent)';
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', (e) => {
-            if (!isResizing) return;
-            const newWidth = e.clientX; 
-            if (newWidth > 300 && newWidth < window.innerWidth - 300) {
-                leftPane.style.width = newWidth + 'px';
-                leftPane.style.flex = 'none';
-            }
-        });
-        document.addEventListener('mouseup', () => {
-            if (isResizing) {
-                isResizing = false;
-                document.body.style.cursor = 'default';
-                resizer.style.background = '';
-                if (editor) editor.resize();
-            }
-        });
+// --- Layout: Drag Resizers & Preview Column (remembered per browser) ---
+const layout = { leftWidth: null, previewWidth: null, previewOpen: false };
+try { Object.assign(layout, JSON.parse(localStorage.getItem('layout')) || {}); } catch (e) {}
+const saveLayout = () => { try { localStorage.setItem('layout', JSON.stringify(layout)); } catch (e) {} };
+
+const leftPane = document.getElementById('left-pane');
+const previewPane = document.getElementById('preview-pane');
+const previewResizer = document.getElementById('preview-resizer');
+
+function applyLayout() {
+    if (layout.leftWidth) {
+        leftPane.style.width = layout.leftWidth + 'px';
+        leftPane.style.flex = 'none';
+    }
+    previewPane.classList.toggle('collapsed', !layout.previewOpen);
+    previewResizer.classList.toggle('hidden', !layout.previewOpen);
+    if (layout.previewOpen) {
+        // Keep at least 300px for the JSON pane if the window got smaller since last visit
+        const maxPreview = window.innerWidth - leftPane.offsetWidth - 300;
+        previewPane.style.width = Math.max(250, Math.min(layout.previewWidth, maxPreview)) + 'px';
+    } else {
+        previewPane.style.width = '';
+    }
+    editor.resize();
+}
+
+function makeResizer(resizer, onMove) {
+    let isResizing = false;
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        resizer.style.background = 'var(--accent)';
+        if (previewFrame) previewFrame.style.pointerEvents = 'none'; // iframe would swallow mousemove
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (isResizing) onMove(e.clientX);
+    });
+    document.addEventListener('mouseup', () => {
+        if (!isResizing) return;
+        isResizing = false;
+        document.body.style.cursor = 'default';
+        resizer.style.background = '';
+        if (previewFrame) previewFrame.style.pointerEvents = '';
+        saveLayout();
+        editor.resize();
+    });
+}
+
+makeResizer(document.getElementById('drag-resizer'), (x) => {
+    if (x > 300 && x < window.innerWidth - previewPane.offsetWidth - 300) {
+        layout.leftWidth = x;
+        leftPane.style.width = x + 'px';
+        leftPane.style.flex = 'none';
     }
 });
+
+makeResizer(previewResizer, (x) => {
+    const w = window.innerWidth - x;
+    if (w > 250 && x > leftPane.offsetWidth + 300) {
+        layout.previewWidth = w;
+        previewPane.style.width = w + 'px';
+    }
+});
+
+// --- Form Preview (Form.io open-source renderer in an iframe) ---
+// Demo options so fs lookup selects aren't empty in the preview; never added to the copied JSON
+const previewDemoValues = {
+    fsworkers: ['John Smith', 'Maria Garcia', 'David Chen', 'Aisha Patel', 'Robert Johnson'],
+    fsproject: ['Main Street Renovation', 'Riverside Office Tower', 'Highway 9 Overpass', 'Lakeview Apartments', 'North Plant Expansion'],
+    fsequipment: ['Excavator CAT 320', 'Skid Steer S650', 'Boom Lift 600S', 'Concrete Mixer', 'Generator 20kW'],
+    fscompany: ['Acme Construction', 'Summit Builders', 'BlueLine Electric', 'Granite Paving Co.', 'Northstar Mechanical'],
+    fsdivision: ['Civil', 'Electrical', 'Mechanical', 'Structural', 'Safety']
+};
+
+const PREVIEW_HTML = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.css">
+<style>body { margin: 0; padding: 16px; background: #fff; } .preview-error { color: #b00020; font-family: monospace; white-space: pre-wrap; }</style>
+</head><body><div id="form"></div>
+<script src="https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.js"></script>
+<script>
+var form = null, pending = null, busy = false, el = document.getElementById('form');
+function showError(msg) { el.innerHTML = '<div class="preview-error"></div>'; el.firstChild.textContent = msg; form = null; }
+function render(schema) {
+    if (typeof Formio === 'undefined') return showError('Could not load the Form.io renderer. Check your internet connection.');
+    if (busy) { pending = schema; return; }
+    busy = true;
+    var done = function () { busy = false; if (pending) { var s = pending; pending = null; render(s); } };
+    var p = form ? Promise.resolve(form.setForm(schema)) : Formio.createForm(el, schema).then(function (f) { form = f; });
+    p.then(done, function (err) { showError(String(err)); done(); });
+}
+window.addEventListener('message', function (e) { if (e.source === parent && e.data && e.data.type === 'render') render(e.data.schema); });
+parent.postMessage({ type: 'preview-ready' }, '*');
+<\/script></body></html>`;
+
+let previewFrame = null;
+let previewReady = false;
+let previewTimer = null;
+let lastComponents = [];
+
+function previewSchema() {
+    const components = JSON.parse(JSON.stringify(lastComponents));
+    const addDemo = (list) => list.forEach(c => {
+        if (c.type === 'select' && !c.dataSrc && String(c.key).startsWith('fs')) {
+            const term = Object.keys(previewDemoValues).find(t => c.key.startsWith(t));
+            const opts = term ? previewDemoValues[term] : [1, 2, 3, 4, 5].map(n => 'Sample ' + n);
+            c.dataSrc = 'values';
+            c.data = { values: opts.map(o => ({ label: o, value: o })) };
+        }
+        if (c.components) addDemo(c.components);
+    });
+    addDemo(components);
+    return { display: 'form', components };
+}
+
+function sendPreview() {
+    if (previewFrame && previewReady && layout.previewOpen) {
+        previewFrame.contentWindow.postMessage({ type: 'render', schema: previewSchema() }, '*');
+    }
+}
+
+function schedulePreview() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(sendPreview, 400);
+}
+
+function ensurePreviewFrame() {
+    if (previewFrame) return;
+    previewFrame = document.createElement('iframe');
+    previewFrame.id = 'preview-frame';
+    previewFrame.srcdoc = PREVIEW_HTML;
+    document.getElementById('preview-frame-wrap').appendChild(previewFrame);
+}
+
+window.addEventListener('message', (e) => {
+    if (previewFrame && e.source === previewFrame.contentWindow && e.data && e.data.type === 'preview-ready') {
+        previewReady = true;
+        sendPreview();
+    }
+});
+
+document.getElementById('btn-preview-open').addEventListener('click', () => {
+    if (!layout.previewWidth) {
+        // First open: split the window into thirds
+        const third = Math.round(window.innerWidth / 3);
+        layout.previewWidth = third;
+        if (!layout.leftWidth) layout.leftWidth = third;
+    }
+    layout.previewOpen = true;
+    applyLayout();
+    saveLayout();
+    ensurePreviewFrame();
+    sendPreview();
+});
+
+document.getElementById('btn-preview-close').addEventListener('click', () => {
+    layout.previewOpen = false;
+    applyLayout();
+    saveLayout();
+});
+
+applyLayout();
+if (layout.previewOpen) ensurePreviewFrame();
 
 // --- Compiler Core Logic ---
 // Lookup selects: any [fs...] tag. The key IS the term (our app finds the endpoint from it).
@@ -487,6 +622,9 @@ function compileShorthand() {
         }
     }
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
+
+    lastComponents = rootComponents;
+    schedulePreview();
 }
 
 // --- Output Mode Toggle ---

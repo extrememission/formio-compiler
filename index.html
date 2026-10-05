@@ -58,6 +58,23 @@
             <!-- Ace Editor Container -->
             <div id="json-editor"></div>
         </section>
+
+        <!-- PREVIEW RESIZER -->
+        <div class="resizer hidden" id="preview-resizer"></div>
+
+        <!-- PREVIEW: collapsed strip or resizable third column -->
+        <section class="preview-pane collapsed" id="preview-pane">
+            <button id="btn-preview-open" class="preview-strip" title="Open Form Preview">
+                <i class="fa-solid fa-eye"></i><span>Preview</span>
+            </button>
+            <div class="preview-body">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-eye" style="color:var(--accent);"></i> Form Preview</h2>
+                    <button id="btn-preview-close" class="btn-text" title="Collapse Preview"><i class="fa-solid fa-angles-right"></i></button>
+                </div>
+                <div id="preview-frame-wrap"></div>
+            </div>
+        </section>
     </main>
 
     <!-- Favorites Modal -->

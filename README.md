@@ -11,7 +11,8 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or name it and download it as a `.json` file. Toggle between a single Component `{ }` or a Components `[ ]` array to match where you're pasting.
 *   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, and a Jobsite Hazard Assessment). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
-*   **Comfortable Workspace:** Light/dark theme toggle, adjustable JSON font size (A−/A+), and a draggable divider between the shorthand and JSON panes.
+*   **Live Form Preview:** A third column renders the actual form with Form.io's open-source renderer. Collapse it to a thin strip on the right edge, or open it and drag its divider to size it. `fs` lookup selects get 5 demo options in the preview only — the copied JSON is untouched. Needs an internet connection to load the renderer.
+*   **Comfortable Workspace:** Light/dark theme toggle, adjustable JSON font size (A−/A+), and draggable dividers between all panes. Column widths and whether the preview is open are remembered in this browser.
 
 ---
 

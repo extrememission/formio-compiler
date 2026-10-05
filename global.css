@@ -49,6 +49,23 @@ body {
     display: flex; justify-content: center; align-items: center; z-index: 10;
 }
 .resizer:hover, .resizer:active { background: var(--accent); width: 4px; }
+.resizer.hidden { display: none; }
+
+/* Preview Column */
+.preview-pane { flex: none; min-width: 250px; display: flex; flex-direction: column; background: var(--bg-surface); }
+.preview-pane.collapsed { width: 36px; min-width: 36px; border-left: 1px solid var(--border); }
+.preview-pane.collapsed .preview-body { display: none; }
+.preview-pane:not(.collapsed) .preview-strip { display: none; }
+.preview-strip {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 16px 0; background: transparent; color: var(--text-muted); border-radius: 0;
+}
+.preview-strip:hover { background: var(--bg-surface-hover); color: var(--text-main); }
+.preview-strip i { margin: 0; }
+.preview-strip span { writing-mode: vertical-rl; letter-spacing: 1px; }
+.preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#preview-frame-wrap { flex: 1; display: flex; min-height: 0; }
+#preview-frame { flex: 1; width: 100%; border: none; background: #fff; }
 
 /* Pane Headers */
 .panel-header {
