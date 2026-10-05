@@ -110,6 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Compiler Core Logic ---
+// Lookup selects: any [fs...] tag. The key IS the term (our app finds the endpoint from it).
+const lookupLabels = { fsworkers: 'Worker', fsproject: 'Project', fsequipment: 'Equipment', fscompany: 'Company', fsdivision: 'Division' };
+let usedLookupKeys = new Set(); // reset each compile; first use gets the plain key, repeats get a suffix
+
 function generateSmartKey(label) {
     if (!label) return 'comp_' + Math.random().toString(36).substring(2,6);
     const words = label.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(w => w);
@@ -175,10 +179,11 @@ function unrollRepeatGroup(groupDef) {
 }
 
 function buildComponent(type, label, choicesStr, isRequired) {
-    const isContainer = ['panel', 'editgrid', 'datagrid', 'well', 'repeat'].includes(type);
+    const isContainer = ['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(type);
     if (isContainer) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
-        
+        if (type === 'fieldset') comp.legend = label;
+
         if (type === 'repeat') {
             comp.max = parseInt(choicesStr) || 3;
             comp.input = false;
@@ -271,6 +276,16 @@ value = true;`
         };
     }
 
+    if (type.startsWith('fs') && type.length > 2) {
+        const key = usedLookupKeys.has(type) ? generateSmartKey(type) : type;
+        usedLookupKeys.add(type);
+        const lookupLabel = label || lookupLabels[type] || type.charAt(2).toUpperCase() + type.slice(3);
+        // Deliberately minimal: no dataSrc / data values
+        const lookup = { label: lookupLabel, key: key, type: 'select', input: true, tableView: true };
+        if (isRequired) lookup.validate = { required: true };
+        return lookup;
+    }
+
     const base = { label: label, key: generateSmartKey(label), type: type, input: true, tableView: true };
     if (isRequired) base.validate = { required: true };
 
@@ -356,6 +371,7 @@ function parseComponentDef(str) {
 function compileShorthand() {
     const text = document.getElementById('shorthand-input').value;
     const lines = text.split('\n');
+    usedLookupKeys = new Set();
     let rootComponents = [];
     let containerStack = [];
     let inBulkMode = false;
@@ -424,7 +440,7 @@ function compileShorthand() {
             const def = parseComponentDef(line);
             if (def) {
                 const comp = buildComponent(def.type, def.label, def.choices, def.required);
-                if (['panel', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
+                if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
                         pushComponent(comp);
                     }
@@ -459,11 +475,8 @@ function compileShorthand() {
         }
     }
 
-    let finalOutput = rootComponents;
-    if (rootComponents.length === 1 && ['panel', 'editgrid', 'datagrid', 'well'].includes(rootComponents[0].type)) {
-        finalOutput = rootComponents[0];
-    }
-    editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
+    // Always output an array so it can be pasted inside any component's "components": [ ]
+    editor.setValue(JSON.stringify(rootComponents, null, 2), -1);
 }
 
 // --- Listeners ---
@@ -657,6 +670,7 @@ document.querySelectorAll('.btn-insert').forEach(btn => {
 // --- Autocomplete Logic ---
 const quickSnippets = [
     { name: 'panel', desc: 'Panel Container', syntax: '[panel] Panel' },
+    { name: 'fieldset', desc: 'Field Set Container', syntax: '[fieldset] Field_Set' },
     { name: 'repeat', desc: 'Super Group Repeater', syntax: '[repeat: 3] Repeat_Group' },
     { name: 'editgrid', desc: 'Edit Grid', syntax: '[editgrid] Edit_Grid' },
     { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] Data_Grid' },
@@ -673,6 +687,11 @@ const quickSnippets = [
     { name: 'radio', desc: 'Radio Buttons', syntax: '[radio] Radio_Question\n- Choice 1\n- Choice 2' },
     { name: 'select', desc: 'Select Dropdown', syntax: '[select] Select_Question\n- Choice 1\n- Choice 2' },
     { name: 'selectboxes', desc: 'Checkboxes (Multi)', syntax: '[selectboxes] Checkboxes_Question\n- Choice 1\n- Choice 2' },
+    { name: 'fsworkers', desc: 'Worker select', syntax: '[fsworkers] Worker' },
+    { name: 'fsproject', desc: 'Project select', syntax: '[fsproject] Project' },
+    { name: 'fsequipment', desc: 'Equipment select', syntax: '[fsequipment] Equipment' },
+    { name: 'fscompany', desc: 'Company select', syntax: '[fscompany] Company' },
+    { name: 'fsdivision', desc: 'Division select', syntax: '[fsdivision] Division' },
     { name: 'checkbox', desc: 'Single Checkbox', syntax: '[checkbox] Checkbox' },
     { name: 'signature', desc: 'Signature Pad', syntax: '[signature] Signature' },
     { name: 'html', desc: 'HTML Element', syntax: '[html: h2] HTML' },

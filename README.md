@@ -59,6 +59,28 @@ Type your component and question, then list your choices directly underneath usi
 - Banana
 ```
 
+### Lookup Selects (fs)
+Any tag starting with `fs` creates a select whose API key (Property Name) is the term itself, with no Data tab values — the app finds the endpoint from the term.
+```text
+[fsworkers] Foreman
+[fsproject]
+[fsequipment]
+[fscompany]
+[fsdivision]
+[fsvendor] Main Supplier
+```
+
+| Tag | Default label | Key (1st) | Key (2nd+) |
+|---|---|---|---|
+| `[fsworkers]` | Worker | `fsworkers` | `fsworkers_x7k2` |
+| `[fsproject]` | Project | `fsproject` | `fsproject_x7k2` |
+| `[fsequipment]` | Equipment | `fsequipment` | `fsequipment_x7k2` |
+| `[fscompany]` | Company | `fscompany` | `fscompany_x7k2` |
+| `[fsdivision]` | Division | `fsdivision` | `fsdivision_x7k2` |
+| `[fsanything]` | Anything | `fsanything` | `fsanything_x7k2` |
+
+The label is whatever you type after the tag; leave it blank to get the default. Type `/fs` to see them in the autocomplete menu.
+
 ### Smart Number Ranges
 Define min and max limits for numbers. The compiler will automatically calculate the maximum digits and apply custom Bootstrap CSS classes (`col-md-2`, etc.) to visually size the input box perfectly, and inject whole-number validation boundaries with a friendly error message.
 ```text
@@ -123,12 +145,13 @@ Here the first blank line closes the Well (so *Notes* lands back in the Applican
 
 ### Supported Containers
 *   `[panel] Panel Name`
+*   `[fieldset] Field Set Name` (the name becomes the Field Set's legend)
 *   `[well] Well Name`
 *   `[editgrid] Dynamic Edit Grid`
 *   `[datagrid] Dynamic Data Grid`
 *   `[repeat: 5] Repeat Group` (see below)
 
-If your entire form is a single Panel, Well, Edit Grid, or Data Grid, the output is that component as a single JSON object; otherwise it's an array of components.
+The output is always a JSON array (`[ ... ]`), even for a single component, so it can be pasted directly inside any component's `"components": [ ]`.
 
 ### Tables
 `[table: 3x2] Layout Table` generates an empty 3 row, 2 column table. Tables are **not** containers — fields typed below a table are not placed into its cells.
