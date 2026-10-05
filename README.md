@@ -8,7 +8,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Command Palette Autocomplete:** Type `/` at the start of a line (or after a space) to instantly summon a Notion-style autocomplete menu. Filter by typing, navigate with the arrow keys, insert with Enter, dismiss with Esc.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
-*   **Copy & Download:** Copy the schema to your clipboard in one click, or name it and download it as a `.json` file.
+*   **Copy & Download:** Copy the schema to your clipboard in one click, or name it and download it as a `.json` file. Toggle between a single Component `{ }` or a Components `[ ]` array to match where you're pasting.
 *   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, and a Jobsite Hazard Assessment). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
 *   **Comfortable Workspace:** Light/dark theme toggle, adjustable JSON font size (A−/A+), and a draggable divider between the shorthand and JSON panes.
@@ -151,7 +151,12 @@ Here the first blank line closes the Well (so *Notes* lands back in the Applican
 *   `[datagrid] Dynamic Data Grid`
 *   `[repeat: 5] Repeat Group` (see below)
 
-The output is always a JSON array (`[ ... ]`), even for a single component, so it can be pasted directly inside any component's `"components": [ ]`.
+### Output: Component `{ }` or Components `[ ]`
+Use the toggle at the top of the JSON pane to choose how the output is shaped for pasting:
+*   **`[ ] Components`** — a JSON array. Paste it over an empty `"components": [ ]` inside a component's schema.
+*   **`{ } Component`** — a single JSON object. Drag any component onto the page, open its schema, select all, and paste over it. If your shorthand has more than one top-level item, they're wrapped in one panel (titled from the schema name box, or "Form").
+
+Your choice is remembered in this browser. UUIDs aren't needed in the pasted JSON — the app adds them on save.
 
 ### Tables
 `[table: 3x2] Layout Table` generates an empty 3 row, 2 column table. Tables are **not** containers — fields typed below a table are not placed into its cells.

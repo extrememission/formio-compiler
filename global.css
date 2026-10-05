@@ -83,6 +83,8 @@ button i { margin-right: 5px; }
 .font-controls button i { margin: 0; }
 .font-controls button:last-child { border-right: none; }
 .font-controls button:hover { color: var(--text-main); background: var(--bg-surface-hover); }
+.output-toggle button { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; white-space: nowrap; }
+.output-toggle button.active, .output-toggle button.active:hover { background: var(--accent); color: #fff; }
 
 /* Compiler UI Specifics */
 #shorthand-input { 

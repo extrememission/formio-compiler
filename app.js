@@ -475,12 +475,37 @@ function compileShorthand() {
         }
     }
 
-    // Always output an array so it can be pasted inside any component's "components": [ ]
-    editor.setValue(JSON.stringify(rootComponents, null, 2), -1);
+    // Components mode: array, pasted over a "components": [ ]
+    // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
+    let finalOutput = rootComponents;
+    if (outputMode === 'component') {
+        if (rootComponents.length === 1) {
+            finalOutput = rootComponents[0];
+        } else {
+            const title = document.getElementById('schema-name').value.trim() || 'Form';
+            finalOutput = { title: title, label: title, key: generateSmartKey(title), type: 'panel', input: false, tableView: false, components: rootComponents };
+        }
+    }
+    editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
 }
+
+// --- Output Mode Toggle ---
+let outputMode = 'components';
+try { outputMode = localStorage.getItem('outputMode') === 'component' ? 'component' : 'components'; } catch (e) {}
+
+const outputToggleBtns = document.querySelectorAll('#output-toggle button');
+const renderOutputToggle = () => outputToggleBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === outputMode));
+outputToggleBtns.forEach(btn => btn.addEventListener('click', () => {
+    outputMode = btn.dataset.mode;
+    try { localStorage.setItem('outputMode', outputMode); } catch (e) {}
+    renderOutputToggle();
+    compileShorthand();
+}));
+renderOutputToggle();
 
 // --- Listeners ---
 document.getElementById('shorthand-input').addEventListener('input', compileShorthand);
+document.getElementById('schema-name').addEventListener('input', () => { if (outputMode === 'component') compileShorthand(); });
 document.getElementById('btn-clear').addEventListener('click', () => {
     document.getElementById('shorthand-input').value = '';
     compileShorthand();

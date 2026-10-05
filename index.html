@@ -41,6 +41,10 @@
             <div class="panel-header">
                 <h2>Generated JSON</h2>
                 <div class="editor-actions" style="display: flex; align-items: center; gap: 8px;">
+                    <div class="font-controls output-toggle" id="output-toggle" style="margin-right: 0;">
+                        <button data-mode="component" title="Component { } — select all in a component's schema and paste over it">{ } Component</button>
+                        <button data-mode="components" title="Components [ ] — paste over an empty &quot;components&quot;: [ ]">[ ] Components</button>
+                    </div>
                     <input type="text" id="schema-name" placeholder="schema_name" style="background: var(--bg-color); color: var(--text); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 130px; outline: none;">
                     <button id="btn-download" class="btn-text" title="Download Schema"><i class="fa-solid fa-download"></i></button>
                     <button id="btn-copy" class="btn-text" title="Copy Schema"><i class="fa-regular fa-copy"></i></button>
