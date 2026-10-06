@@ -318,7 +318,10 @@ function buildComponent(type, label, choicesStr, isRequired) {
     if (isContainer) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
         if (type === 'fieldset') comp.legend = label;
-        if (type === 'panel') comp.theme = 'primary';
+        if (type === 'panel') {
+            comp.title = label; // text shown in the panel's header bar
+            comp.theme = 'primary';
+        }
 
         if (type === 'repeat') {
             comp.max = parseInt(choicesStr) || 3;

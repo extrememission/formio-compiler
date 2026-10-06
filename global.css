@@ -169,7 +169,9 @@ button i { margin-right: 5px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
 .modal-header h2 { margin: 0; color: var(--accent); display: flex; gap: 10px; align-items: center; font-size: 1.2rem; }
 .modal-body { padding: 1.5rem; overflow-y: auto; }
+/* Columns live inside the scrolling modal-body so overflow scrolls down, never sideways */
 .snippet-columns { column-count: 2; column-gap: 2rem; }
+@media (max-width: 700px) { .snippet-columns { column-count: 1; } }
 .snippet-category { margin-bottom: 2rem; break-inside: avoid; page-break-inside: avoid; }
 .snippet-category h3 { margin-top: 0; margin-bottom: 10px; font-size: 0.95rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .snippet-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; background: var(--input-bg); }
