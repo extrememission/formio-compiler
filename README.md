@@ -8,7 +8,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Command Palette Autocomplete:** Type `/` at the start of a line (or after a space) to instantly summon a Notion-style autocomplete menu. Filter by typing, navigate with the arrow keys, insert with Enter, dismiss with Esc.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
-*   **Copy & Download:** Copy the schema to your clipboard in one click, or name it and download it as a `.json` file. Toggle between a single Component `{ }` or a Components `[ ]` array to match where you're pasting.
+*   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file. Download opens your system's Save dialog so you can name the file (Chrome/Edge; other desktop browsers ask for a name, mobile opens the share sheet). The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
 *   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, and a Jobsite Hazard Assessment). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
 *   **Live Form Preview:** A third column renders the actual form with Form.io's open-source renderer. Collapse it to a thin strip on the right edge, or open it and drag its divider to size it. `fs` lookup selects get 5 demo options in the preview only — the copied JSON is untouched. Needs an internet connection to load the renderer.
@@ -145,17 +145,17 @@ To nest, type a container while you're already inside another one:
 Here the first blank line closes the Well (so *Notes* lands back in the Applicant panel), and the second closes the Applicant panel.
 
 ### Supported Containers
-*   `[panel] Panel Name`
+*   `[panel] Panel Name` (all panels use the Primary theme)
 *   `[fieldset] Field Set Name` (the name becomes the Field Set's legend)
 *   `[well] Well Name`
 *   `[editgrid] Dynamic Edit Grid`
 *   `[datagrid] Dynamic Data Grid`
 *   `[repeat: 5] Repeat Group` (see below)
 
-### Output: Component `{ }` or Components `[ ]`
-Use the toggle at the top of the JSON pane to choose how the output is shaped for pasting:
-*   **`[ ] Components`** — a JSON array. Paste it over an empty `"components": [ ]` inside a component's schema.
-*   **`{ } Component`** — a single JSON object. Drag any component onto the page, open its schema, select all, and paste over it. If your shorthand has more than one top-level item, they're wrapped in one panel (titled from the schema name box, or "Form").
+### Output: The Wrapper Checkbox
+Use the **Wrapper** checkbox at the top of the JSON pane to choose how the output is shaped for pasting:
+*   **Unchecked** — a `[ ]` components array. Paste it over an empty `"components": [ ]` inside a component's schema.
+*   **Checked** — a single `{ }` component. Drag any component onto the page, open its schema, select all, and paste over it. If your shorthand has more than one top-level item, they're wrapped in one Panel titled "Panel".
 
 Your choice is remembered in this browser. UUIDs aren't needed in the pasted JSON — the app adds them on save.
 

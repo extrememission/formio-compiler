@@ -318,6 +318,7 @@ function buildComponent(type, label, choicesStr, isRequired) {
     if (isContainer) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
         if (type === 'fieldset') comp.legend = label;
+        if (type === 'panel') comp.theme = 'primary';
 
         if (type === 'repeat') {
             comp.max = parseInt(choicesStr) || 3;
@@ -349,6 +350,7 @@ function buildComponent(type, label, choicesStr, isRequired) {
             label: btnText,
             key: generateSmartKey("printPanel"),
             type: "panel",
+            theme: "primary",
             input: false,
             tableView: false,
             collapsible: false,
@@ -617,8 +619,7 @@ function compileShorthand() {
         if (rootComponents.length === 1) {
             finalOutput = rootComponents[0];
         } else {
-            const title = document.getElementById('schema-name').value.trim() || 'Form';
-            finalOutput = { title: title, label: title, key: generateSmartKey(title), type: 'panel', input: false, tableView: false, components: rootComponents };
+            finalOutput = { title: 'Panel', label: 'Panel', key: generateSmartKey('Panel'), type: 'panel', theme: 'primary', input: false, tableView: false, components: rootComponents };
         }
     }
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
@@ -627,23 +628,20 @@ function compileShorthand() {
     schedulePreview();
 }
 
-// --- Output Mode Toggle ---
+// --- Wrapper Checkbox (checked = one { } component, unchecked = [ ] components array) ---
 let outputMode = 'components';
 try { outputMode = localStorage.getItem('outputMode') === 'component' ? 'component' : 'components'; } catch (e) {}
 
-const outputToggleBtns = document.querySelectorAll('#output-toggle button');
-const renderOutputToggle = () => outputToggleBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === outputMode));
-outputToggleBtns.forEach(btn => btn.addEventListener('click', () => {
-    outputMode = btn.dataset.mode;
+const wrapperCheck = document.getElementById('chk-wrapper');
+wrapperCheck.checked = outputMode === 'component';
+wrapperCheck.addEventListener('change', () => {
+    outputMode = wrapperCheck.checked ? 'component' : 'components';
     try { localStorage.setItem('outputMode', outputMode); } catch (e) {}
-    renderOutputToggle();
     compileShorthand();
-}));
-renderOutputToggle();
+});
 
 // --- Listeners ---
 document.getElementById('shorthand-input').addEventListener('input', compileShorthand);
-document.getElementById('schema-name').addEventListener('input', () => { if (outputMode === 'component') compileShorthand(); });
 document.getElementById('btn-clear').addEventListener('click', () => {
     document.getElementById('shorthand-input').value = '';
     compileShorthand();
@@ -657,15 +655,44 @@ document.getElementById('btn-copy').addEventListener('click', () => {
     });
 });
 
-document.getElementById('btn-download').addEventListener('click', () => {
-    let schemaName = document.getElementById('schema-name').value.trim() || 'form_schema';
-    if (!schemaName.endsWith('.json')) schemaName += '.json';
+// Download: mobile → share sheet; Chrome/Edge desktop → native Save dialog; others → ask for a name, then download
+document.getElementById('btn-download').addEventListener('click', async () => {
     const jsonStr = editor.getValue();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const suggestedName = 'form_schema.json';
+
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
+    if (isMobile && navigator.canShare) {
+        const file = new File([jsonStr], suggestedName, { type: 'application/json' });
+        if (navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: suggestedName }); } catch (e) {} // dismissed
+            return;
+        }
+    }
+
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(jsonStr);
+            await writable.close();
+        } catch (e) {
+            if (e.name !== 'AbortError') alert('Could not save the file: ' + e.message);
+        }
+        return;
+    }
+
+    let fileName = prompt('Save as:', suggestedName);
+    if (!fileName || !fileName.trim()) return;
+    fileName = fileName.trim();
+    if (!fileName.toLowerCase().endsWith('.json')) fileName += '.json';
+    const url = URL.createObjectURL(new Blob([jsonStr], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = schemaName;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
 });

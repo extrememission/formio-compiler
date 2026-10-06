@@ -61,19 +61,29 @@ body {
     padding: 16px 0; background: transparent; color: var(--text-muted); border-radius: 0;
 }
 .preview-strip:hover { background: var(--bg-surface-hover); color: var(--text-main); }
-.preview-strip i { margin: 0; }
 .preview-strip span { writing-mode: vertical-rl; letter-spacing: 1px; }
 .preview-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 #preview-frame-wrap { flex: 1; display: flex; min-height: 0; }
 #preview-frame { flex: 1; width: 100%; border: none; background: #fff; }
 
-/* Pane Headers */
+/* Pane Headers: small title line on top, toolbar line below; same height in every pane */
 .panel-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.75rem 1.5rem; background: var(--bg-surface); border-bottom: 1px solid var(--border);
-    min-height: 56px;
+    flex: none; height: 76px; padding: 10px 1rem;
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--bg-surface); border-bottom: 1px solid var(--border);
 }
-.panel-header h2 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text-main); }
+.pane-title {
+    display: flex; align-items: center; justify-content: space-between; height: 20px;
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
+}
+.pane-toolbar { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+.pane-toolbar .btn-text { padding: 6px 10px; }
+.btn-mini { background: transparent; color: var(--text-muted); padding: 2px 6px; border-radius: 4px; }
+.btn-mini:hover { background: var(--bg-surface-hover); color: var(--text-main); }
+.btn-mini i { margin: 0; }
+.wrapper-check { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
+.wrapper-check:hover { color: var(--text-main); }
+.wrapper-check input { margin: 0; accent-color: var(--accent); cursor: pointer; }
 
 /* Buttons */
 button { cursor: pointer; font-family: inherit; font-weight: 600; border-radius: 6px; border: none; padding: 0.5rem 1rem; transition: all 0.2s; }
@@ -90,7 +100,7 @@ button i { margin-right: 5px; }
 /* Sleek Font Controls */
 .font-controls { 
     display: flex; align-items: center; background: var(--input-bg); 
-    border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-right: 15px; 
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
 }
 .font-controls button { 
     background: transparent; border: none; color: var(--text-muted); 
@@ -100,8 +110,6 @@ button i { margin-right: 5px; }
 .font-controls button i { margin: 0; }
 .font-controls button:last-child { border-right: none; }
 .font-controls button:hover { color: var(--text-main); background: var(--bg-surface-hover); }
-.output-toggle button { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; white-space: nowrap; }
-.output-toggle button.active, .output-toggle button.active:hover { background: var(--accent); color: #fff; }
 
 /* Compiler UI Specifics */
 #shorthand-input { 

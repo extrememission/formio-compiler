@@ -16,8 +16,8 @@
         <!-- LEFT: SHORTHAND EDITOR -->
         <section class="left-pane" id="left-pane" style="width: 45%; min-width: 400px;">
             <div class="panel-header">
-                <h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent);"></i> Form.io Compiler</h2>
-                <div class="header-actions" style="display: flex; gap: 5px; align-items: center;">
+                <div class="pane-title">Form.io Compiler</div>
+                <div class="pane-toolbar">
                     <button id="btn-save-fav" class="btn-text" title="Save as Favorite"><i class="fa-regular fa-star"></i></button>
                     <button id="btn-list-favs" class="btn-text" title="My Favorites"><i class="fa-solid fa-folder-open"></i></button>
                     <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
@@ -39,17 +39,13 @@
         <!-- RIGHT: OUTPUT -->
         <section class="editor-panel">
             <div class="panel-header">
-                <h2>Generated JSON</h2>
-                <div class="editor-actions" style="display: flex; align-items: center; gap: 8px;">
-                    <div class="font-controls output-toggle" id="output-toggle" style="margin-right: 0;">
-                        <button data-mode="component" title="Component { } — select all in a component's schema and paste over it">{ } Component</button>
-                        <button data-mode="components" title="Components [ ] — paste over an empty &quot;components&quot;: [ ]">[ ] Components</button>
-                    </div>
-                    <input type="text" id="schema-name" placeholder="schema_name" style="background: var(--bg-color); color: var(--text); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 12px; width: 130px; outline: none;">
-                    <button id="btn-download" class="btn-text" title="Download Schema"><i class="fa-solid fa-download"></i></button>
+                <div class="pane-title">Generated JSON</div>
+                <div class="pane-toolbar">
                     <button id="btn-copy" class="btn-text" title="Copy Schema"><i class="fa-regular fa-copy"></i></button>
-                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 4px;"></div>
-                    <div class="font-controls" style="margin-left: 0;">
+                    <button id="btn-download" class="btn-text" title="Download Schema"><i class="fa-solid fa-download"></i></button>
+                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
+                    <label class="wrapper-check" title="Checked: one { } object, wrapped in a Panel if needed. Select all in a component's schema and paste over it.&#10;Unchecked: a [ ] array. Paste over an empty &quot;components&quot;: [ ]."><input type="checkbox" id="chk-wrapper"> Wrapper</label>
+                    <div class="font-controls" style="margin-left: auto;">
                         <button id="btn-font-dec" title="Decrease Font Size">A-</button>
                         <button id="btn-font-inc" title="Increase Font Size">A+</button>
                     </div>
@@ -65,12 +61,13 @@
         <!-- PREVIEW: collapsed strip or resizable third column -->
         <section class="preview-pane collapsed" id="preview-pane">
             <button id="btn-preview-open" class="preview-strip" title="Open Form Preview">
-                <i class="fa-solid fa-eye"></i><span>Preview</span>
+                <span>Preview</span>
             </button>
             <div class="preview-body">
                 <div class="panel-header">
-                    <h2><i class="fa-solid fa-eye" style="color:var(--accent);"></i> Form Preview</h2>
-                    <button id="btn-preview-close" class="btn-text" title="Collapse Preview"><i class="fa-solid fa-angles-right"></i></button>
+                    <div class="pane-title">Form Preview
+                        <button id="btn-preview-close" class="btn-mini" title="Collapse Preview"><i class="fa-solid fa-angles-right"></i></button>
+                    </div>
                 </div>
                 <div id="preview-frame-wrap"></div>
             </div>
