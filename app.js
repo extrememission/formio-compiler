@@ -861,37 +861,57 @@ document.querySelectorAll('.btn-insert').forEach(btn => {
 });
 
 // --- Autocomplete Logic ---
+// ${n:text} marks a placeholder: inserted selected, Tab/Enter moves to the next one in n order
 const quickSnippets = [
-    { name: 'panel', desc: 'Panel Container', syntax: '[panel] Panel' },
-    { name: 'fieldset', desc: 'Field Set Container', syntax: '[fieldset] Field_Set' },
-    { name: 'repeat', desc: 'Super Group Repeater', syntax: '[repeat: 3] Repeat_Group' },
-    { name: 'editgrid', desc: 'Edit Grid', syntax: '[editgrid] Edit_Grid' },
-    { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] Data_Grid' },
-    { name: 'well', desc: 'Well Container', syntax: '[well] Well' },
-    { name: 'table', desc: 'Table Layout', syntax: '[table: 2x2] Table' },
-    { name: 'textfield', desc: 'Text Field', syntax: '[textfield] Text_Field' },
-    { name: 'textarea', desc: 'Text Area', syntax: '[textarea] Text_Area' },
-    { name: 'number', desc: 'Number Input', syntax: '[number] Number' },
-    { name: 'numberrange', desc: 'Number (Min/Max)', syntax: '[number: 1-5] Number' },
-    { name: 'phoneNumber', desc: 'Phone Number', syntax: '[phoneNumber] Phone_Number' },
-    { name: 'datetime', desc: 'Date & Time', syntax: '[datetime] Date_Time' },
-    { name: 'date', desc: 'Date Only', syntax: '[date] Date' },
-    { name: 'email', desc: 'Email Input', syntax: '[email] Email' },
-    { name: 'radio', desc: 'Radio Buttons', syntax: '[radio] Radio_Question\n- Choice 1\n- Choice 2' },
-    { name: 'select', desc: 'Select Dropdown', syntax: '[select] Select_Question\n- Choice 1\n- Choice 2' },
-    { name: 'selectboxes', desc: 'Checkboxes (Multi)', syntax: '[selectboxes] Checkboxes_Question\n- Choice 1\n- Choice 2' },
-    { name: 'fsworkers', desc: 'Worker select', syntax: '[fsworkers] Worker' },
-    { name: 'fsproject', desc: 'Project select', syntax: '[fsproject] Project' },
-    { name: 'fsequipment', desc: 'Equipment select', syntax: '[fsequipment] Equipment' },
-    { name: 'fscompany', desc: 'Company select', syntax: '[fscompany] Company' },
-    { name: 'fsdivision', desc: 'Division select', syntax: '[fsdivision] Division' },
-    { name: 'checkbox', desc: 'Single Checkbox', syntax: '[checkbox] Checkbox' },
-    { name: 'signature', desc: 'Signature Pad', syntax: '[signature] Signature' },
-    { name: 'html', desc: 'HTML Element', syntax: '[html: h2] HTML' },
-    { name: 'content', desc: 'HTML Content', syntax: '[content] Content' },
-    { name: 'print', desc: 'Clean Print Button', syntax: '[print] Print' },
-    { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio: Choice1, Choice2]\nQuestion_1\nQuestion_2\n+++' }
+    { name: 'panel', desc: 'Panel Container', syntax: '[panel] ${1:Panel}' },
+    { name: 'fieldset', desc: 'Field Set Container', syntax: '[fieldset] ${1:Field Set}' },
+    { name: 'repeat', desc: 'Super Group Repeater', syntax: '[repeat: ${2:3}] ${1:Repeat Group}' },
+    { name: 'editgrid', desc: 'Edit Grid', syntax: '[editgrid] ${1:Edit Grid}' },
+    { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] ${1:Data Grid}' },
+    { name: 'well', desc: 'Well Container', syntax: '[well] ${1:Well}' },
+    { name: 'table', desc: 'Table Layout', syntax: '[table: ${2:2x2}] ${1:Table}' },
+    { name: 'textfield', desc: 'Text Field', syntax: '[textfield] ${1:Text Field}' },
+    { name: 'textarea', desc: 'Text Area', syntax: '[textarea] ${1:Text Area}' },
+    { name: 'number', desc: 'Number Input', syntax: '[number] ${1:Number}' },
+    { name: 'numberrange', desc: 'Number (Min/Max)', syntax: '[number: ${2:1-5}] ${1:Number}' },
+    { name: 'phoneNumber', desc: 'Phone Number', syntax: '[phoneNumber] ${1:Phone Number}' },
+    { name: 'datetime', desc: 'Date & Time', syntax: '[datetime] ${1:Date Time}' },
+    { name: 'date', desc: 'Date Only', syntax: '[date] ${1:Date}' },
+    { name: 'email', desc: 'Email Input', syntax: '[email] ${1:Email}' },
+    { name: 'radio', desc: 'Radio Buttons', syntax: '[radio] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
+    { name: 'select', desc: 'Select Dropdown', syntax: '[select] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
+    { name: 'selectboxes', desc: 'Checkboxes (Multi)', syntax: '[selectboxes] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
+    { name: 'fsworkers', desc: 'Worker select', syntax: '[fsworkers] ${1:Worker}' },
+    { name: 'fsproject', desc: 'Project select', syntax: '[fsproject] ${1:Project}' },
+    { name: 'fsequipment', desc: 'Equipment select', syntax: '[fsequipment] ${1:Equipment}' },
+    { name: 'fscompany', desc: 'Company select', syntax: '[fscompany] ${1:Company}' },
+    { name: 'fsdivision', desc: 'Division select', syntax: '[fsdivision] ${1:Division}' },
+    { name: 'checkbox', desc: 'Single Checkbox', syntax: '[checkbox] ${1:Checkbox}' },
+    { name: 'signature', desc: 'Signature Pad', syntax: '[signature] ${1:Signature}' },
+    { name: 'html', desc: 'HTML Element', syntax: '[html: ${2:h2}] ${1:Heading}' },
+    { name: 'content', desc: 'HTML Content', syntax: '[content] ${1:<p>Content</p>}' },
+    { name: 'print', desc: 'Clean Print Button', syntax: '[print] ${1:Print}' },
+    { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' }
 ];
+
+const PLACEHOLDER_RE = /\$\{(\d+):([^}]*)\}/g;
+const stripPlaceholders = (syntax) => syntax.replace(PLACEHOLDER_RE, '$2');
+
+// Returns the plain text plus each placeholder's [start, end) offset, in Tab order
+function expandSnippet(syntax) {
+    let text = '', last = 0, m;
+    const stops = [];
+    PLACEHOLDER_RE.lastIndex = 0;
+    while ((m = PLACEHOLDER_RE.exec(syntax))) {
+        text += syntax.slice(last, m.index);
+        stops.push({ order: +m[1], start: text.length, end: text.length + m[2].length });
+        text += m[2];
+        last = PLACEHOLDER_RE.lastIndex;
+    }
+    text += syntax.slice(last);
+    stops.sort((a, b) => a.order - b.order);
+    return { text, stops };
+}
 
 const acPopup = document.getElementById('ac-popup');
 const textarea = document.getElementById('shorthand-input');
@@ -916,7 +936,8 @@ function renderAutocomplete() {
         const div = document.createElement('div');
         div.className = 'ac-item' + (index === acSelectedIndex ? ' selected' : '');
         div.innerHTML = `<div class="ac-item-label">${snip.name} <span style="font-weight:normal; color:var(--text-muted); font-size: 0.75rem;">- ${snip.desc}</span></div>
-                         <div class="ac-item-syntax">${snip.syntax.split('\n')[0]}</div>`;
+                         <div class="ac-item-syntax"></div>`;
+        div.querySelector('.ac-item-syntax').textContent = stripPlaceholders(snip.syntax).split('\n')[0];
         
         div.addEventListener('mousedown', (e) => {
             e.preventDefault(); 
@@ -930,21 +951,133 @@ function renderAutocomplete() {
     if (selectedEl) selectedEl.scrollIntoView({ block: 'nearest' });
 }
 
-function insertSnippet(snip) {
-    const textBefore = textarea.value.substring(0, acStartIndex);
-    const textAfter = textarea.value.substring(textarea.selectionEnd);
-    const injection = snip.syntax + (snip.syntax.endsWith('\n') ? '' : '\n');
-    
-    textarea.value = textBefore + injection + textAfter;
-    textarea.selectionStart = textarea.selectionEnd = acStartIndex + injection.length;
-    compileShorthand();
-    closeAutocomplete();
+// Edits via execCommand so Ctrl+Z still works; fires 'input', which recompiles
+function replaceRange(start, end, text) {
     textarea.focus();
+    textarea.setSelectionRange(start, end);
+    const ok = text ? document.execCommand('insertText', false, text) : (start === end || document.execCommand('delete'));
+    if (!ok) {
+        textarea.setRangeText(text, start, end, 'end');
+        compileShorthand();
+    }
 }
+
+function insertSnippet(snip) {
+    const start = acStartIndex;
+    const { text, stops } = expandSnippet(snip.syntax);
+    closeAutocomplete();
+    replaceRange(start, textarea.selectionEnd, text); // no trailing newline: a stray blank line would close containers
+    if (stops.length) {
+        activeSnippet = {
+            stops: stops.map(s => ({ start: start + s.start, end: start + s.end })),
+            index: 0,
+            end: start + text.length,
+            lastLength: textarea.value.length
+        };
+        selectStop();
+    }
+}
+
+// --- Snippet Placeholders (Tab / Shift+Tab / Enter / Esc) ---
+let activeSnippet = null;
+
+function selectStop() {
+    const s = activeSnippet.stops[activeSnippet.index];
+    textarea.setSelectionRange(s.start, s.end);
+}
+
+const lineEndFrom = (pos) => { const i = textarea.value.indexOf('\n', pos); return i === -1 ? textarea.value.length : i; };
+
+// Final Tab: go to the line after the snippet (reuse an empty next line rather than adding another blank)
+function exitSnippetToNextLine() {
+    const lineEnd = lineEndFrom(activeSnippet.end);
+    activeSnippet = null;
+    const v = textarea.value;
+    if (lineEnd < v.length) {
+        const nextEnd = lineEndFrom(lineEnd + 1);
+        if (v.slice(lineEnd + 1, nextEnd).trim() === '') {
+            textarea.setSelectionRange(lineEnd + 1, lineEnd + 1);
+            return;
+        }
+    }
+    replaceRange(lineEnd, lineEnd, '\n');
+}
+
+// Enter at the end of a "- choice" line starts the next "- "; Enter on an empty "- " ends the list
+function continueList() {
+    const pos = textarea.selectionStart;
+    if (pos !== textarea.selectionEnd) return false;
+    const v = textarea.value;
+    const lineStart = v.lastIndexOf('\n', pos - 1) + 1;
+    const lineEnd = lineEndFrom(pos);
+    if (pos !== lineEnd) return false;
+    const line = v.slice(lineStart, lineEnd);
+    if (line.trim() === '-') {
+        replaceRange(lineStart, lineEnd, '');
+        return true;
+    }
+    if (!/^\s*- /.test(line)) return false;
+    replaceRange(pos, pos, '\n- ');
+    return true;
+}
+
+// Keep placeholder positions in step with typing inside the current one
+textarea.addEventListener('input', () => {
+    if (!activeSnippet) return;
+    const delta = textarea.value.length - activeSnippet.lastLength;
+    activeSnippet.lastLength = textarea.value.length;
+    const cur = activeSnippet.stops[activeSnippet.index];
+    const pos = textarea.selectionStart;
+    if (pos < cur.start || pos > cur.end + delta) { activeSnippet = null; return; }
+    // Shift every placeholder that sits after this one in the text (Tab order can differ from text order)
+    activeSnippet.stops.forEach(s => { if (s !== cur && s.start >= cur.end) { s.start += delta; s.end += delta; } });
+    cur.end += delta;
+    activeSnippet.end += delta;
+});
+
+textarea.addEventListener('mousedown', () => { activeSnippet = null; });
+
+textarea.addEventListener('keydown', (e) => {
+    if (acActive || e.defaultPrevented) return;
+
+    if (activeSnippet) {
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
+            activeSnippet = null;
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            const pos = textarea.selectionEnd;
+            activeSnippet = null;
+            textarea.setSelectionRange(pos, pos);
+            return;
+        } else if (e.key === 'Tab' && e.shiftKey) {
+            e.preventDefault();
+            if (activeSnippet.index > 0) { activeSnippet.index--; selectStop(); }
+            return;
+        } else if (e.key === 'Tab' || e.key === 'Enter') {
+            e.preventDefault();
+            if (activeSnippet.index < activeSnippet.stops.length - 1) {
+                activeSnippet.index++;
+                selectStop();
+                return;
+            }
+            if (e.key === 'Tab') { exitSnippetToNextLine(); return; }
+            // Enter on the last placeholder: finish, then act like Enter at the end of that line
+            const lineEnd = lineEndFrom(textarea.selectionEnd);
+            activeSnippet = null;
+            textarea.setSelectionRange(lineEnd, lineEnd);
+            if (!continueList()) replaceRange(lineEnd, lineEnd, '\n');
+            return;
+        }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && continueList()) {
+        e.preventDefault();
+    }
+});
 
 textarea.addEventListener('keydown', (e) => {
     if (!acActive) return;
-    
+
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         acSelectedIndex = (acSelectedIndex + 1) % filteredSnippets.length;
@@ -953,7 +1086,7 @@ textarea.addEventListener('keydown', (e) => {
         e.preventDefault();
         acSelectedIndex = (acSelectedIndex - 1 + filteredSnippets.length) % filteredSnippets.length;
         renderAutocomplete();
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
         if (filteredSnippets.length > 0) {
             e.preventDefault();
             insertSnippet(filteredSnippets[acSelectedIndex]);

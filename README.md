@@ -4,8 +4,11 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 
 ## 🌟 Core Features
 
-*   **Lightning Fast Shorthand:** Build forms in seconds using intuitive bracket syntax (`[textfield] Name`).
-*   **Command Palette Autocomplete:** Type `/` at the start of a line (or after a space) to instantly summon a Notion-style autocomplete menu. Filter by typing, navigate with the arrow keys, insert with Enter, dismiss with Esc.
+*   **Lightning Fast Shorthand:** Type `/` at the start of a line, keep typing to narrow the list (`/fse` → `fsequipment`), and hit Enter (or Tab) — the component drops in with its label already selected, so you just type over it. Then:
+    *   **Tab** keeps what's there and jumps to the next placeholder (e.g. radio question → Choice 1 → Choice 2); after the last one it moves you to the next line. **Shift+Tab** goes back; **Esc** stops.
+    *   **Enter** at the end of a `- choice` line starts the next `- ` automatically; Enter on an empty `- ` ends the list.
+
+    Arrow keys move through the menu; Esc dismisses it. The bracket syntax underneath (`[textfield] Name`) is simple enough to type by hand, too.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file. Download opens your system's Save dialog so you can name the file (Chrome/Edge; other desktop browsers ask for a name, mobile opens the share sheet). The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
