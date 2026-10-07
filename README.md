@@ -4,11 +4,13 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 
 ## 🌟 Core Features
 
-*   **Lightning Fast Shorthand:** Type `/` at the start of a line, keep typing to narrow the list (`/fse` → `fsequipment`), and hit Enter (or Tab) — the component drops in with its label already selected, so you just type over it. Then:
-    *   **Tab** keeps what's there and jumps to the next placeholder (e.g. radio question → Choice 1 → Choice 2); after the last one it moves you to the next line. **Shift+Tab** goes back; **Esc** stops.
-    *   **Enter** at the end of a `- choice` line starts the next `- ` automatically; Enter on an empty `- ` ends the list.
+*   **Lightning Fast Shorthand:** Type `[` (or `![` for a required field), keep typing to narrow the menu (`[fse` → `fsequipment`), and hit Enter (or Tab) — the component drops in with its label already selected, so you just type over it. Then:
+    *   **Tab** keeps what's there and jumps to the next placeholder (e.g. radio question → Choice 1 → Choice 2); after the last one it moves you to the next line. Tab never leaves the editor. **Shift+Tab** goes back; **Esc** stops.
+    *   **Enter** on a placeholder moves to the next one. At the end of a `- choice` line it starts the next `- ` automatically; Enter on an empty `- ` ends the list.
 
-    Arrow keys move through the menu; Esc dismisses it. The bracket syntax underneath (`[textfield] Name`) is simple enough to type by hand, too.
+    Arrow keys move through the menu; Esc dismisses it; typing `]` or a space closes it, so typing tags by hand (`[textfield] Name`) works as always.
+*   **Follows Your Cursor:** Wherever your cursor is in the shorthand, the JSON pane highlights that component and scrolls to it, and the Preview outlines and scrolls to it too — no hunting through the other panes.
+*   **Special Character Check:** Curly quotes, em/en dashes, ellipses, non-breaking and invisible spaces (common when pasting from Word or PDFs) get garbled by Form.io. They're underlined in red with a ⚠ in the margin (hover it to see what they are), and the header shows a count with a **Fix** button that swaps them all for plain versions.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file. Download opens your system's Save dialog so you can name the file (Chrome/Edge; other desktop browsers ask for a name, mobile opens the share sheet). The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
@@ -83,7 +85,7 @@ Any tag starting with `fs` creates a select whose API key (Property Name) is the
 | `[fsdivision]` | Division | `fsdivision` | `fsdivision_x7k2` |
 | `[fsanything]` | Anything | `fsanything` | `fsanything_x7k2` |
 
-The label is whatever you type after the tag; leave it blank to get the default. Type `/fs` to see them in the autocomplete menu.
+The label is whatever you type after the tag; leave it blank to get the default. Each one shows the placeholder "Type to select..." in the form. Type `[fs` to see them in the autocomplete menu.
 
 ### Smart Number Ranges
 Define min and max limits for numbers. The compiler will automatically calculate the maximum digits and apply custom Bootstrap CSS classes (`col-md-2`, etc.) to visually size the input box perfectly, and inject whole-number validation boundaries with a friendly error message.
@@ -183,6 +185,6 @@ Every component gets an auto-generated key: the first three words of its label i
 ![date] Start Date
 ```
 
-It physically duplicates your fields N times in the JSON, appending the copy number to each API key (`companyName_x7k2_1`, `companyName_x7k2_2`, …), and injects numbered HTML headers ("Work History (1)") and "Add another Work History?" checkboxes tied to Form.io native conditional rules. It strictly enforces `clearOnHide: false` to prevent data-wipes during edit mode load flickering. It provides the exact same user experience as an Edit Grid, but outputs 100% flat, crash-proof data!
+It physically duplicates your fields N times in the JSON, appending the copy number to each API key (`companyName_x7k2_1`, `companyName_x7k2_2`, …), and injects numbered labels in normal paragraph text ("Work History (1)") and "Add another Work History?" checkboxes tied to Form.io native conditional rules. It strictly enforces `clearOnHide: false` to prevent data-wipes during edit mode load flickering. It provides the exact same user experience as an Edit Grid, but outputs 100% flat, crash-proof data!
 
 Like other containers, the repeat group ends at the next blank line.

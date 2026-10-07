@@ -60,11 +60,29 @@ editor.setOptions({
     useWorker: false
 });
 
+// --- Shorthand Editor (Ace: autocomplete, Tab placeholders, highlighting) ---
+const Range = ace.require('ace/range').Range;
+const shorthand = ace.edit('shorthand-input');
+shorthand.setTheme("ace/theme/tomorrow_night");
+shorthand.session.setMode("ace/mode/text");
+shorthand.setOptions({
+    fontSize: "14px",
+    fontFamily: "'JetBrains Mono', monospace",
+    showPrintMargin: false,
+    useWorker: false,
+    wrap: true,
+    enableLiveAutocompletion: true,
+    placeholder: "Type [ to add a component..."
+});
+shorthand.renderer.setScrollMargin(12, 12);
+
 // --- Theme & Font Toggles ---
 document.getElementById('btn-theme').addEventListener('click', () => {
     isDarkTheme = !isDarkTheme;
     document.body.className = isDarkTheme ? 'theme-dark' : 'theme-light';
-    editor.setTheme(isDarkTheme ? "ace/theme/tomorrow_night" : "ace/theme/github");
+    const aceTheme = isDarkTheme ? "ace/theme/tomorrow_night" : "ace/theme/github";
+    editor.setTheme(aceTheme);
+    shorthand.setTheme(aceTheme);
 });
 
 document.getElementById('btn-font-inc').addEventListener('click', () => {
@@ -101,6 +119,7 @@ function applyLayout() {
         previewPane.style.width = '';
     }
     editor.resize();
+    shorthand.resize();
 }
 
 function makeResizer(resizer, onMove) {
@@ -123,6 +142,7 @@ function makeResizer(resizer, onMove) {
         if (previewFrame) previewFrame.style.pointerEvents = '';
         saveLayout();
         editor.resize();
+        shorthand.resize();
     });
 }
 
@@ -157,21 +177,36 @@ const PREVIEW_HTML = `<!DOCTYPE html>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.css">
-<style>body { margin: 0; padding: 16px; background: #fff; } .preview-error { color: #b00020; font-family: monospace; white-space: pre-wrap; }</style>
+<style>body { margin: 0; padding: 16px; background: #fff; } .preview-error { color: #b00020; font-family: monospace; white-space: pre-wrap; }
+.sync-focus { outline: 2px solid #007acc; outline-offset: 4px; border-radius: 4px; }</style>
 </head><body><div id="form"></div>
 <script src="https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.js"></script>
 <script>
-var form = null, pending = null, busy = false, el = document.getElementById('form');
+var form = null, pending = null, busy = false, focusKey = null, el = document.getElementById('form');
 function showError(msg) { el.innerHTML = '<div class="preview-error"></div>'; el.firstChild.textContent = msg; form = null; }
+// Outline + scroll to the component the cursor is on in the shorthand
+function applyFocus() {
+    var prev = document.querySelector('.sync-focus');
+    if (prev) prev.classList.remove('sync-focus');
+    if (!focusKey) return;
+    var target = document.querySelector('.formio-component-' + CSS.escape(focusKey));
+    if (!target || target.offsetParent === null) return;
+    target.classList.add('sync-focus');
+    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
 function render(schema) {
     if (typeof Formio === 'undefined') return showError('Could not load the Form.io renderer. Check your internet connection.');
     if (busy) { pending = schema; return; }
     busy = true;
-    var done = function () { busy = false; if (pending) { var s = pending; pending = null; render(s); } };
+    var done = function () { busy = false; if (pending) { var s = pending; pending = null; render(s); } else applyFocus(); };
     var p = form ? Promise.resolve(form.setForm(schema)) : Formio.createForm(el, schema).then(function (f) { form = f; });
     p.then(done, function (err) { showError(String(err)); done(); });
 }
-window.addEventListener('message', function (e) { if (e.source === parent && e.data && e.data.type === 'render') render(e.data.schema); });
+window.addEventListener('message', function (e) {
+    if (e.source !== parent || !e.data) return;
+    if (e.data.type === 'render') render(e.data.schema);
+    if (e.data.type === 'focus') { focusKey = e.data.key; if (!busy) applyFocus(); }
+});
 parent.postMessage({ type: 'preview-ready' }, '*');
 <\/script></body></html>`;
 
@@ -248,6 +283,7 @@ if (layout.previewOpen) ensurePreviewFrame();
 // Lookup selects: any [fs...] tag. The key IS the term (our app finds the endpoint from it).
 const lookupLabels = { fsworkers: 'Worker', fsproject: 'Project', fsequipment: 'Equipment', fscompany: 'Company', fsdivision: 'Division' };
 let usedLookupKeys = new Set(); // reset each compile; first use gets the plain key, repeats get a suffix
+const repeatFirstKey = new WeakMap(); // repeat group → key of its first copy's header, for cursor sync
 
 function generateSmartKey(label) {
     if (!label) return 'comp_' + Math.random().toString(36).substring(2,6);
@@ -268,13 +304,14 @@ function unrollRepeatGroup(groupDef) {
         
         let header = {
             type: 'htmlelement',
-            tag: 'h4',
+            tag: 'p',
             content: `${groupDef.label} (${i})`,
             key: generateSmartKey(`header_${groupKey}_${i}`),
             input: false,
             tableView: false
         };
         if (condObj) header.conditional = condObj;
+        if (i === 1) repeatFirstKey.set(groupDef, header.key);
         results.push(header);
 
         groupDef.components.forEach(comp => {
@@ -421,7 +458,7 @@ value = true;`
         usedLookupKeys.add(type);
         const lookupLabel = label || lookupLabels[type] || type.charAt(2).toUpperCase() + type.slice(3);
         // Deliberately minimal: no dataSrc / data values
-        const lookup = { label: lookupLabel, key: key, type: 'select', input: true, tableView: true };
+        const lookup = { label: lookupLabel, key: key, type: 'select', placeholder: 'Type to select...', input: true, tableView: true };
         if (isRequired) lookup.validate = { required: true };
         return lookup;
     }
@@ -509,8 +546,8 @@ function parseComponentDef(str) {
 }
 
 function compileShorthand() {
-    const text = document.getElementById('shorthand-input').value;
-    const lines = text.split('\n');
+    const lines = shorthand.session.getDocument().getAllLines();
+    const lineComps = []; // source row → component it produced (for cursor sync)
     usedLookupKeys = new Set();
     let rootComponents = [];
     let containerStack = [];
@@ -573,6 +610,7 @@ function compileShorthand() {
                 }
             }
             pushComponent(comp);
+            lineComps[i] = comp;
             continue;
         }
 
@@ -580,6 +618,7 @@ function compileShorthand() {
             const def = parseComponentDef(line);
             if (def) {
                 const comp = buildComponent(def.type, def.label, def.choices, def.required);
+                lineComps[i] = comp;
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
                         pushComponent(comp);
@@ -592,6 +631,7 @@ function compileShorthand() {
                 }
             }
         } else if (line.startsWith('- ') && lastFieldComponent) {
+            lineComps[i] = lastFieldComponent;
             const optText = line.substring(2).trim();
             const optObj = { label: optText, value: generateSmartKey(optText) };
             if (lastFieldComponent.type === 'radio' || lastFieldComponent.type === 'selectboxes') {
@@ -625,10 +665,23 @@ function compileShorthand() {
             finalOutput = { title: 'Panel', label: 'Panel', key: generateSmartKey('Panel'), type: 'panel', theme: 'primary', input: false, tableView: false, components: rootComponents };
         }
     }
+    const scrollTop = editor.session.getScrollTop(); // setValue would jump to the top
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
+    editor.session.setScrollTop(scrollTop);
+
+    // Resolve each line's component to its key in the output (repeat copies are suffixed _1, _2, ...)
+    const outputKeys = new Set();
+    const collectKeys = (list) => list.forEach(c => { outputKeys.add(c.key); if (c.components) collectKeys(c.components); });
+    collectKeys(rootComponents);
+    lineKeys = lineComps.map(c => !c ? null
+        : outputKeys.has(c.key) ? c.key
+        : outputKeys.has(c.key + '_1') ? c.key + '_1'
+        : repeatFirstKey.get(c) || null);
 
     lastComponents = rootComponents;
     schedulePreview();
+    checkBadChars();
+    scheduleSync();
 }
 
 // --- Wrapper Checkbox (checked = one { } component, unchecked = [ ] components array) ---
@@ -644,10 +697,16 @@ wrapperCheck.addEventListener('change', () => {
 });
 
 // --- Listeners ---
-document.getElementById('shorthand-input').addEventListener('input', compileShorthand);
+// Recompile once per batch of edits (setValue / snippet insert fire several change events)
+let compileQueued = false;
+shorthand.session.on('change', () => {
+    if (compileQueued) return;
+    compileQueued = true;
+    setTimeout(() => { compileQueued = false; compileShorthand(); }, 0);
+});
 document.getElementById('btn-clear').addEventListener('click', () => {
-    document.getElementById('shorthand-input').value = '';
-    compileShorthand();
+    shorthand.setValue('', -1);
+    shorthand.focus();
 });
 document.getElementById('btn-copy').addEventListener('click', () => {
     navigator.clipboard.writeText(editor.getValue()).then(() => {
@@ -707,11 +766,11 @@ document.getElementById('btn-close-fav').addEventListener('click', () => favModa
 document.getElementById('btn-save-fav').addEventListener('click', () => {
     const name = prompt("Enter a name for this favorite session:");
     if (!name) return;
-    const shorthand = document.getElementById('shorthand-input').value;
-    if (!shorthand.trim()) return alert("Shorthand is empty!");
-    
+    const text = shorthand.getValue();
+    if (!text.trim()) return alert("Shorthand is empty!");
+
     const tx = db.transaction('favorites', 'readwrite');
-    tx.objectStore('favorites').add({ name, shorthand, date: new Date().toLocaleDateString() });
+    tx.objectStore('favorites').add({ name, shorthand: text, date: new Date().toLocaleDateString() });
     tx.oncomplete = () => {
         const btn = document.getElementById('btn-save-fav');
         const orig = btn.innerHTML;
@@ -796,9 +855,9 @@ document.getElementById('btn-list-favs').addEventListener('click', () => {
                 loadBtn.className = 'btn-primary';
                 loadBtn.innerHTML = 'Load';
                 loadBtn.onclick = () => {
-                    document.getElementById('shorthand-input').value = f.shorthand;
-                    compileShorthand();
+                    shorthand.setValue(f.shorthand, -1);
                     favModal.classList.add('hidden');
+                    shorthand.focus();
                 };
                 
                 const delBtn = document.createElement('button');
@@ -841,18 +900,9 @@ document.querySelectorAll('.btn-insert').forEach(btn => {
     btn.addEventListener('click', (e) => {
         let snippet = e.target.getAttribute('data-snippet');
         if (snippet) snippet = snippet.replace(/\\n/g, '\n');
-        const textarea = document.getElementById('shorthand-input');
-        const cursorPos = textarea.selectionStart;
-        const textBefore = textarea.value.substring(0, cursorPos);
-        const textAfter = textarea.value.substring(cursorPos, textarea.value.length);
-        
-        let injection = snippet;
-        if (textBefore.length > 0 && !textBefore.endsWith('\n')) injection = '\n' + injection;
-        
-        textarea.value = textBefore + injection + textAfter;
-        textarea.selectionStart = textarea.selectionEnd = cursorPos + injection.length;
-        textarea.focus();
-        compileShorthand();
+        if (shorthand.getCursorPosition().column > 0) snippet = '\n' + snippet;
+        shorthand.insert(snippet);
+        shorthand.focus();
         
         const originalText = e.target.innerText;
         e.target.innerText = "Added!";
@@ -894,257 +944,173 @@ const quickSnippets = [
     { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' }
 ];
 
-const PLACEHOLDER_RE = /\$\{(\d+):([^}]*)\}/g;
-const stripPlaceholders = (syntax) => syntax.replace(PLACEHOLDER_RE, '$2');
+const stripPlaceholders = (syntax) => syntax.replace(/\$\{\d+:([^}]*)\}/g, '$1');
 
-// Returns the plain text plus each placeholder's [start, end) offset, in Tab order
-function expandSnippet(syntax) {
-    let text = '', last = 0, m;
-    const stops = [];
-    PLACEHOLDER_RE.lastIndex = 0;
-    while ((m = PLACEHOLDER_RE.exec(syntax))) {
-        text += syntax.slice(last, m.index);
-        stops.push({ order: +m[1], start: text.length, end: text.length + m[2].length });
-        text += m[2];
-        last = PLACEHOLDER_RE.lastIndex;
+// Typing [ opens the menu; typed letters filter it; Enter/Tab inserts with the first placeholder selected
+shorthand.completers = [{
+    id: 'shorthandTags',
+    identifierRegexps: [/[\[\w]/],
+    triggerCharacters: ['['],
+    getCompletions(ed, session, pos, prefix, callback) {
+        if (!prefix.startsWith('[')) return callback(null, []);
+        callback(null, quickSnippets.map((s, i) => ({
+            caption: '[' + s.name,
+            snippet: s.syntax,
+            meta: s.desc,
+            docText: stripPlaceholders(s.syntax),
+            score: 1000 - i
+        })));
     }
-    text += syntax.slice(last);
-    stops.sort((a, b) => a.order - b.order);
-    return { text, stops };
-}
-
-const acPopup = document.getElementById('ac-popup');
-const textarea = document.getElementById('shorthand-input');
-let acActive = false;
-let acStartIndex = -1;
-let acSelectedIndex = 0;
-let filteredSnippets = [];
-
-function closeAutocomplete() {
-    acActive = false;
-    acPopup.classList.add('hidden');
-}
-
-function renderAutocomplete() {
-    acPopup.innerHTML = '';
-    if (filteredSnippets.length === 0) {
-        acPopup.innerHTML = '<div style="padding: 10px; color: var(--text-muted); font-size: 0.85rem;">No snippets found</div>';
-        return;
-    }
-    
-    filteredSnippets.forEach((snip, index) => {
-        const div = document.createElement('div');
-        div.className = 'ac-item' + (index === acSelectedIndex ? ' selected' : '');
-        div.innerHTML = `<div class="ac-item-label">${snip.name} <span style="font-weight:normal; color:var(--text-muted); font-size: 0.75rem;">- ${snip.desc}</span></div>
-                         <div class="ac-item-syntax"></div>`;
-        div.querySelector('.ac-item-syntax').textContent = stripPlaceholders(snip.syntax).split('\n')[0];
-        
-        div.addEventListener('mousedown', (e) => {
-            e.preventDefault(); 
-            insertSnippet(snip);
-        });
-        
-        acPopup.appendChild(div);
-    });
-    
-    const selectedEl = acPopup.querySelector('.selected');
-    if (selectedEl) selectedEl.scrollIntoView({ block: 'nearest' });
-}
-
-// Edits via execCommand so Ctrl+Z still works; fires 'input', which recompiles
-function replaceRange(start, end, text) {
-    textarea.focus();
-    textarea.setSelectionRange(start, end);
-    const ok = text ? document.execCommand('insertText', false, text) : (start === end || document.execCommand('delete'));
-    if (!ok) {
-        textarea.setRangeText(text, start, end, 'end');
-        compileShorthand();
-    }
-}
-
-function insertSnippet(snip) {
-    const start = acStartIndex;
-    const { text, stops } = expandSnippet(snip.syntax);
-    closeAutocomplete();
-    replaceRange(start, textarea.selectionEnd, text); // no trailing newline: a stray blank line would close containers
-    if (stops.length) {
-        activeSnippet = {
-            stops: stops.map(s => ({ start: start + s.start, end: start + s.end })),
-            index: 0,
-            end: start + text.length,
-            lastLength: textarea.value.length
-        };
-        selectStop();
-    }
-}
-
-// --- Snippet Placeholders (Tab / Shift+Tab / Enter / Esc) ---
-let activeSnippet = null;
-
-function selectStop() {
-    const s = activeSnippet.stops[activeSnippet.index];
-    textarea.setSelectionRange(s.start, s.end);
-}
-
-const lineEndFrom = (pos) => { const i = textarea.value.indexOf('\n', pos); return i === -1 ? textarea.value.length : i; };
-
-// Final Tab: go to the line after the snippet (reuse an empty next line rather than adding another blank)
-function exitSnippetToNextLine() {
-    const lineEnd = lineEndFrom(activeSnippet.end);
-    activeSnippet = null;
-    const v = textarea.value;
-    if (lineEnd < v.length) {
-        const nextEnd = lineEndFrom(lineEnd + 1);
-        if (v.slice(lineEnd + 1, nextEnd).trim() === '') {
-            textarea.setSelectionRange(lineEnd + 1, lineEnd + 1);
-            return;
-        }
-    }
-    replaceRange(lineEnd, lineEnd, '\n');
-}
+}];
 
 // Enter at the end of a "- choice" line starts the next "- "; Enter on an empty "- " ends the list
-function continueList() {
-    const pos = textarea.selectionStart;
-    if (pos !== textarea.selectionEnd) return false;
-    const v = textarea.value;
-    const lineStart = v.lastIndexOf('\n', pos - 1) + 1;
-    const lineEnd = lineEndFrom(pos);
-    if (pos !== lineEnd) return false;
-    const line = v.slice(lineStart, lineEnd);
+function continueList(ed) {
+    if (!ed.selection.isEmpty()) return false;
+    const pos = ed.getCursorPosition();
+    const line = ed.session.getLine(pos.row);
+    if (pos.column !== line.length) return false;
     if (line.trim() === '-') {
-        replaceRange(lineStart, lineEnd, '');
+        ed.session.replace(new Range(pos.row, 0, pos.row, line.length), '');
         return true;
     }
     if (!/^\s*- /.test(line)) return false;
-    replaceRange(pos, pos, '\n- ');
+    ed.insert('\n- ');
     return true;
 }
 
-// Keep placeholder positions in step with typing inside the current one
-textarea.addEventListener('input', () => {
-    if (!activeSnippet) return;
-    const delta = textarea.value.length - activeSnippet.lastLength;
-    activeSnippet.lastLength = textarea.value.length;
-    const cur = activeSnippet.stops[activeSnippet.index];
-    const pos = textarea.selectionStart;
-    if (pos < cur.start || pos > cur.end + delta) { activeSnippet = null; return; }
-    // Shift every placeholder that sits after this one in the text (Tab order can differ from text order)
-    activeSnippet.stops.forEach(s => { if (s !== cur && s.start >= cur.end) { s.start += delta; s.end += delta; } });
-    cur.end += delta;
-    activeSnippet.end += delta;
-});
-
-textarea.addEventListener('mousedown', () => { activeSnippet = null; });
-
-textarea.addEventListener('keydown', (e) => {
-    if (acActive || e.defaultPrevented) return;
-
-    if (activeSnippet) {
-        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) {
-            activeSnippet = null;
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            const pos = textarea.selectionEnd;
-            activeSnippet = null;
-            textarea.setSelectionRange(pos, pos);
-            return;
-        } else if (e.key === 'Tab' && e.shiftKey) {
-            e.preventDefault();
-            if (activeSnippet.index > 0) { activeSnippet.index--; selectStop(); }
-            return;
-        } else if (e.key === 'Tab' || e.key === 'Enter') {
-            e.preventDefault();
-            if (activeSnippet.index < activeSnippet.stops.length - 1) {
-                activeSnippet.index++;
-                selectStop();
-                return;
-            }
-            if (e.key === 'Tab') { exitSnippetToNextLine(); return; }
-            // Enter on the last placeholder: finish, then act like Enter at the end of that line
-            const lineEnd = lineEndFrom(textarea.selectionEnd);
-            activeSnippet = null;
-            textarea.setSelectionRange(lineEnd, lineEnd);
-            if (!continueList()) replaceRange(lineEnd, lineEnd, '\n');
-            return;
-        }
-    }
-
-    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && continueList()) {
-        e.preventDefault();
-    }
-});
-
-textarea.addEventListener('keydown', (e) => {
-    if (!acActive) return;
-
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        acSelectedIndex = (acSelectedIndex + 1) % filteredSnippets.length;
-        renderAutocomplete();
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        acSelectedIndex = (acSelectedIndex - 1 + filteredSnippets.length) % filteredSnippets.length;
-        renderAutocomplete();
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-        if (filteredSnippets.length > 0) {
-            e.preventDefault();
-            insertSnippet(filteredSnippets[acSelectedIndex]);
-        }
-    } else if (e.key === 'Escape') {
-        closeAutocomplete();
-    }
-});
-
-textarea.addEventListener('input', (e) => {
-    const cursorPos = textarea.selectionStart;
-    const textToCursor = textarea.value.substring(0, cursorPos);
-    
-    if (!acActive) {
-        if (e.data === '/') {
-            const charBefore = cursorPos > 1 ? textarea.value[cursorPos - 2] : '\n';
-            if (charBefore === '\n' || charBefore === ' ') {
-                acActive = true;
-                acStartIndex = cursorPos - 1;
-                acSelectedIndex = 0;
-                filteredSnippets = [...quickSnippets];
-                
-                // Calculate approx cursor position based on 14px monospace font
-                const lines = textarea.value.substring(0, cursorPos).split('\n');
-                const currentLine = lines[lines.length - 1];
-                const rect = textarea.getBoundingClientRect();
-                
-                // Padding (24px) + Font dimensions (22.4px height, ~8.4px width) - scroll offsets
-                const topOffset = rect.top + 24 + ((lines.length - 1) * 22.4) - textarea.scrollTop;
-                const leftOffset = rect.left + 24 + (currentLine.length * 8.4) - textarea.scrollLeft;
-                
-                acPopup.style.top = (topOffset + 25) + 'px'; 
-                acPopup.style.left = leftOffset + 'px';
-                
-                acPopup.classList.remove('hidden');
-                renderAutocomplete();
-            }
-        }
+// Move to the next line: reuse an empty one rather than adding another blank (blank lines close containers)
+function goToNextLine(ed) {
+    const row = ed.getCursorPosition().row;
+    if (row + 1 < ed.session.getLength() && ed.session.getLine(row + 1).trim() === '') {
+        ed.selection.moveTo(row + 1, 0);
     } else {
-        if (cursorPos <= acStartIndex || textarea.value[acStartIndex] !== '/') {
-            closeAutocomplete();
-            return;
+        ed.navigateLineEnd();
+        ed.insert('\n');
+    }
+}
+
+// Tab never leaves the editor: Ace's placeholder Tab runs first; otherwise Tab goes to the next line
+shorthand.commands.removeCommand('indent');
+shorthand.commands.removeCommand('outdent');
+shorthand.commands.addCommand({ name: 'nextLine', bindKey: { win: 'Tab', mac: 'Tab' }, exec: goToNextLine });
+
+// Enter on a placeholder moves to the next one; on the last, finishes and acts like Enter at the line end
+shorthand.commands.addCommand({
+    name: 'smartEnter',
+    bindKey: { win: 'Return', mac: 'Return' },
+    exec(ed) {
+        const m = ed.tabstopManager;
+        if (m) {
+            if (m.index < m.tabstops.length - 1) { m.tabNext(1); return; }
+            m.detach();
+            ed.navigateLineEnd();
         }
-        
-        const query = textarea.value.substring(acStartIndex + 1, cursorPos).toLowerCase();
-        if (query.includes(' ') || query.includes('\n')) {
-            closeAutocomplete();
-            return;
-        }
-        
-        filteredSnippets = quickSnippets.filter(s => s.name.toLowerCase().includes(query) || s.desc.toLowerCase().includes(query));
-        acSelectedIndex = 0;
-        renderAutocomplete();
+        if (!continueList(ed)) ed.insert('\n');
     }
 });
+
+// Tab on the last placeholder: Ace parks at the snippet end; carry on to the next line like a final Tab should
+let tabFromLastStop = false;
+shorthand.commands.on('exec', (e) => {
+    const m = shorthand.tabstopManager;
+    tabFromLastStop = e.command.name === 'Tab' && !!m && m.index === m.tabstops.length - 1;
+});
+shorthand.commands.on('afterExec', (e) => {
+    if (e.command.name === 'Tab' && tabFromLastStop) {
+        tabFromLastStop = false;
+        goToNextLine(shorthand);
+    }
+});
+
+// --- Special Characters (garbled by Form.io when pasted from Word/PDF) ---
+const BAD_CHARS = {
+    '‘': ["'", 'curly single quote'], '’': ["'", 'curly apostrophe'], '‚': ["'", 'low single quote'], '‛': ["'", 'reversed single quote'],
+    '“': ['"', 'curly double quote'], '”': ['"', 'curly double quote'], '„': ['"', 'low double quote'], '‟': ['"', 'reversed double quote'],
+    '′': ["'", 'prime'], '″': ['"', 'double prime'],
+    '–': ['-', 'en dash'], '—': ['-', 'em dash'], '―': ['-', 'horizontal bar'], '−': ['-', 'minus sign'],
+    '‐': ['-', 'Unicode hyphen'], '‑': ['-', 'non-breaking hyphen'],
+    '…': ['...', 'ellipsis'], '•': ['-', 'bullet'],
+    ' ': [' ', 'non-breaking space'], ' ': [' ', 'en space'], ' ': [' ', 'em space'], ' ': [' ', 'figure space'],
+    ' ': [' ', 'thin space'], ' ': [' ', 'hair space'], ' ': [' ', 'narrow non-breaking space'],
+    '​': ['', 'zero-width space'], '‌': ['', 'zero-width non-joiner'], '‍': ['', 'zero-width joiner'],
+    '﻿': ['', 'invisible byte-order mark'], '­': ['', 'soft hyphen']
+};
+const BAD_CHAR_RE = new RegExp('[' + Object.keys(BAD_CHARS).join('') + ']', 'g');
+const fixCharsBtn = document.getElementById('btn-fix-chars');
+let badCharMarkers = [];
+
+// Underline each one, flag its line in the margin (hover for names), and show a count + Fix button
+function checkBadChars() {
+    const session = shorthand.session;
+    badCharMarkers.forEach(id => session.removeMarker(id));
+    badCharMarkers = [];
+    const annotations = [];
+    let count = 0;
+    session.getDocument().getAllLines().forEach((line, row) => {
+        const names = new Set();
+        line.replace(BAD_CHAR_RE, (ch, col) => {
+            count++;
+            names.add(BAD_CHARS[ch][1]);
+            badCharMarkers.push(session.addMarker(new Range(row, col, row, col + 1), 'bad-char', 'text', true));
+            return ch;
+        });
+        if (names.size) annotations.push({ row, column: 0, type: 'warning', text: 'Form.io may garble: ' + [...names].join(', ') });
+    });
+    session.setAnnotations(annotations);
+    fixCharsBtn.hidden = count === 0;
+    fixCharsBtn.textContent = `⚠ ${count} special character${count === 1 ? '' : 's'} · Fix`;
+}
+
+fixCharsBtn.addEventListener('click', () => {
+    const pos = shorthand.getCursorPosition();
+    shorthand.setValue(shorthand.getValue().replace(BAD_CHAR_RE, ch => BAD_CHARS[ch][0]), -1);
+    shorthand.moveCursorToPosition(pos);
+    shorthand.focus();
+});
+
+// --- Cursor Sync: JSON pane + Preview follow the component under the shorthand cursor ---
+let lineKeys = [];
+let syncTimer = null;
+let jsonSyncMarker = null;
+
+function scheduleSync() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncToCursor, 120);
+}
+
+function syncToCursor() {
+    let row = shorthand.getCursorPosition().row;
+    while (row >= 0 && !lineKeys[row]) row--; // blank or plain line: use the component above it
+    const key = row >= 0 ? lineKeys[row] : null;
+    highlightJson(key);
+    if (previewFrame && previewReady && layout.previewOpen) {
+        previewFrame.contentWindow.postMessage({ type: 'focus', key }, '*');
+    }
+}
+
+// Highlight the component's whole { ... } block in the JSON pane and scroll it into view
+function highlightJson(key) {
+    const session = editor.session;
+    if (jsonSyncMarker !== null) { session.removeMarker(jsonSyncMarker); jsonSyncMarker = null; }
+    if (!key) return;
+    const lines = session.getDocument().getAllLines();
+    const keyLine = '"key": ' + JSON.stringify(key);
+    const keyRow = lines.findIndex(l => l.trim().replace(/,$/, '') === keyLine);
+    if (keyRow === -1) return;
+    const indent = ' '.repeat(lines[keyRow].search(/\S/) - 2);
+    let start = keyRow, end = keyRow;
+    while (start > 0 && lines[start] !== indent + '{') start--;
+    while (end < lines.length - 1 && lines[end] !== indent + '}' && lines[end] !== indent + '},') end++;
+    jsonSyncMarker = session.addMarker(new Range(start, 0, end, Infinity), 'sync-line', 'fullLine');
+    if (start < editor.getFirstVisibleRow() || start > editor.getLastVisibleRow() - 2) {
+        editor.scrollToLine(Math.max(0, start - 2), false, true, () => {});
+    }
+}
+
+shorthand.selection.on('changeCursor', scheduleSync);
 
 // --- Pre-fill Example ---
-document.getElementById('shorthand-input').value = `[panel] Employee Onboarding
+shorthand.setValue(`[panel] Employee Onboarding
 ![textfield] First Name
 ![textfield] Last Name
 [radio] Gender
@@ -1165,7 +1131,7 @@ Have you worked here before?
 Are you over 18?
 Do you need a visa sponsorship?
 +++
-`;
+`, -1);
 compileShorthand();
 
 

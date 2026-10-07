@@ -25,12 +25,11 @@
                     <button id="btn-theme" class="btn-text" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
                     <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
                     <button id="btn-clear" class="btn-text text-danger" title="Clear Editor"><i class="fa-solid fa-trash"></i></button>
+                    <button id="btn-fix-chars" class="btn-text char-warning" hidden title="Curly quotes, dashes and invisible spaces (often pasted from Word or PDFs) get garbled by Form.io. Click to replace them all with plain versions."></button>
                 </div>
             </div>
-            <textarea id="shorthand-input" spellcheck="false" placeholder="Type your shorthand here..."></textarea>
-            
-            <!-- Autocomplete Popup -->
-            <div id="ac-popup" class="hidden"></div>
+            <!-- Ace shorthand editor -->
+            <div id="shorthand-input"></div>
         </section>
 
         <!-- DRAG RESIZER -->
@@ -166,6 +165,7 @@
 
     <!-- Ace Editor CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-language_tools.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

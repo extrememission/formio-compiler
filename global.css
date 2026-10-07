@@ -112,55 +112,12 @@ button i { margin-right: 5px; }
 .font-controls button:hover { color: var(--text-main); background: var(--bg-surface-hover); }
 
 /* Compiler UI Specifics */
-#shorthand-input { 
-    flex: 1; width: 100%; resize: none; border: none; 
-    background: var(--code-bg); color: var(--text-main); 
-    padding: 1.5rem; font-family: 'JetBrains Mono', monospace; font-size: 14px; 
-    line-height: 1.6; outline: none; 
-}
+#shorthand-input { flex: 1; min-height: 0; }
 
-/* Autocomplete Popup */
-#ac-popup {
-    position: absolute;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    z-index: 500;
-    max-height: 250px;
-    overflow-y: auto;
-    width: 320px;
-    display: flex;
-    flex-direction: column;
-}
-#ac-popup.hidden {
-    display: none;
-}
-.ac-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    color: var(--text-main);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-}
-.ac-item:last-child {
-    border-bottom: none;
-}
-.ac-item:hover, .ac-item.selected {
-    background: var(--bg-surface-hover);
-}
-.ac-item-label {
-    font-weight: bold;
-    color: var(--accent);
-    margin-bottom: 2px;
-}
-.ac-item-syntax {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-}
+/* Ace markers: special characters (red underline) and the synced component (blue band) */
+.ace_marker-layer .bad-char { position: absolute; background: rgba(248, 81, 73, 0.25); border-bottom: 2px solid var(--danger); }
+.ace_marker-layer .sync-line { position: absolute; background: rgba(0, 122, 204, 0.15); }
+.pane-toolbar .char-warning { margin-left: auto; color: var(--danger); font-size: 0.78rem; white-space: nowrap; }
 
 /* Modal */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 1; transition: opacity 0.2s; }
