@@ -1170,16 +1170,18 @@ function layout(report, fields) {
     var D = S.System.Drawing, C = S.Report.Components;
     var page = report.pages.getByIndex(0);
     var w = page.width - page.margins.left - page.margins.right;
+    // Bands go on the page BEFORE their texts are added, so the texts get linked to the report
     var title = new C.StiReportTitleBand();
     title.height = 0.5;
+    page.components.add(title);
     var t = new C.StiText(new D.Rectangle(0, 0, w, 0.4));
     t.text = 'Form submission (sample data, form order)';
     t.font = new D.Font('Arial', 12, D.FontStyle.Bold);
     title.components.add(t);
-    page.components.add(title);
     var band = new C.StiDataBand();
     band.dataSourceName = 'data';
     band.height = fields.length * 0.3 + 0.1;
+    page.components.add(band);
     fields.forEach(function (f, i) {
         var label = new C.StiText(new D.Rectangle(0, i * 0.3, 2.5, 0.28));
         label.text = f.label;
@@ -1193,7 +1195,6 @@ function layout(report, fields) {
         value.wordWrap = true;
         band.components.add(value);
     });
-    page.components.add(band);
 }
 function build(msg) {
     var report = new S.Report.StiReport();
