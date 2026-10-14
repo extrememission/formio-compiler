@@ -126,6 +126,10 @@ button i { margin-right: 5px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
 .modal-header h2 { margin: 0; color: var(--accent); display: flex; gap: 10px; align-items: center; font-size: 1.2rem; }
 .modal-body { padding: 1.5rem; overflow-y: auto; }
+.modal-content.report-modal { width: 96vw; max-width: 96vw; height: 92vh; max-height: 92vh; }
+.report-note { font-size: 0.75rem; color: var(--text-muted); }
+#report-frame-wrap { flex: 1; display: flex; min-height: 0; }
+#report-frame { flex: 1; border: none; background: #fff; border-radius: 0 0 6px 6px; }
 /* Columns live inside the scrolling modal-body so overflow scrolls down, never sideways */
 .snippet-columns { column-count: 2; column-gap: 2rem; }
 @media (max-width: 700px) { .snippet-columns { column-count: 1; } }

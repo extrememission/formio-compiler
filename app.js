@@ -1109,6 +1109,146 @@ function highlightJson(key) {
 
 shorthand.selection.on('changeCursor', scheduleSync);
 
+// --- Stimulsoft Report Test (real Stimulsoft JS, trial, loaded on first open) ---
+// unpkg, not jsDelivr: jsDelivr times out (503) on these multi-MB files
+const STIMULSOFT_CDN = 'https://unpkg.com/stimulsoft-reports-js@2026.4.1/Scripts/';
+const LAYOUT_TYPES = ['panel', 'fieldset', 'well', 'table', 'columns', 'htmlelement', 'content', 'hidden', 'button'];
+
+// A demo value shaped like real Form.io submission data for each component type
+function sampleValue(c) {
+    const opts = c.values || (c.data && c.data.values) || [];
+    switch (c.type) {
+        case 'email': return 'name@example.com';
+        case 'phoneNumber': return '(555) 555-0123';
+        case 'number': return c.validate && c.validate.min !== undefined ? c.validate.min : 42;
+        case 'checkbox': return true;
+        case 'datetime': return new Date().toISOString();
+        case 'signature': return '[signature image]';
+        case 'radio': return opts.length ? opts[0].value : 'Yes';
+        case 'selectboxes': return Object.fromEntries(opts.map((o, i) => [o.value, i === 0]));
+        case 'select': {
+            if (opts.length) return opts[0].value;
+            const term = Object.keys(previewDemoValues).find(t => String(c.key).startsWith(t));
+            return term ? previewDemoValues[term][0] : 'Sample 1';
+        }
+        default: return 'Sample ' + (c.label || c.key);
+    }
+}
+
+// Flat submission data in form order (layout components don't nest data; grids hold arrays of rows)
+function sampleSubmission(components) {
+    const data = {}, fields = [];
+    const walk = (list, target, collect) => list.forEach(c => {
+        if (c.type === 'editgrid' || c.type === 'datagrid') {
+            const row = {};
+            walk(c.components || [], row, false);
+            target[c.key] = [row, { ...row }];
+            if (collect) fields.push({ key: c.key, label: c.label, grid: true });
+        } else if (LAYOUT_TYPES.includes(c.type) || !c.input) {
+            if (c.components) walk(c.components, target, collect);
+        } else {
+            target[c.key] = sampleValue(c);
+            if (collect) fields.push({ key: c.key, label: c.label || c.key, object: c.type === 'selectboxes' });
+        }
+    });
+    walk(components, data, true);
+    return { data, fields };
+}
+
+const REPORT_HTML = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>html, body { margin: 0; height: 100%; } #designer { height: 100%; } .msg { font-family: sans-serif; padding: 24px; color: #555; }</style>
+</head><body><div id="designer"><div class="msg">Loading Stimulsoft (about 11 MB the first time)...</div></div>
+<script src="${STIMULSOFT_CDN}stimulsoft.reports.pack.js"><\/script>
+<script src="${STIMULSOFT_CDN}stimulsoft.viewer.pack.js"><\/script>
+<script src="${STIMULSOFT_CDN}stimulsoft.designer.pack.js"><\/script>
+<script>
+var designer = null;
+var S = window.Stimulsoft;
+// One data band: a bold label + {data.key} value per field, in form order
+function layout(report, fields) {
+    var D = S.System.Drawing, C = S.Report.Components;
+    var page = report.pages.getByIndex(0);
+    var w = page.width - page.margins.left - page.margins.right;
+    var title = new C.StiReportTitleBand();
+    title.height = 0.5;
+    var t = new C.StiText(new D.Rectangle(0, 0, w, 0.4));
+    t.text = 'Form submission (sample data, form order)';
+    t.font = new D.Font('Arial', 12, D.FontStyle.Bold);
+    title.components.add(t);
+    page.components.add(title);
+    var band = new C.StiDataBand();
+    band.dataSourceName = 'data';
+    band.height = fields.length * 0.3 + 0.1;
+    fields.forEach(function (f, i) {
+        var label = new C.StiText(new D.Rectangle(0, i * 0.3, 2.5, 0.28));
+        label.text = f.label;
+        label.font = new D.Font('Arial', 9, D.FontStyle.Bold);
+        label.wordWrap = true;
+        band.components.add(label);
+        var value = new C.StiText(new D.Rectangle(2.6, i * 0.3, w - 2.6, 0.28));
+        value.text = f.grid ? '(grid rows: see the data_' + f.key + ' table in the Dictionary)'
+            : f.object ? '(checkbox group: see the Dictionary)' : '{data.' + f.key + '}';
+        value.font = new D.Font('Arial', 9);
+        value.wordWrap = true;
+        band.components.add(value);
+    });
+    page.components.add(band);
+}
+function build(msg) {
+    var report = new S.Report.StiReport();
+    report.reportUnit = S.Report.StiReportUnitType.Inches;
+    var dataSet = new S.System.Data.DataSet('Submission');
+    dataSet.readJson({ data: [msg.data] });
+    report.regData('Submission', 'Submission', dataSet);
+    report.dictionary.synchronize();
+    layout(report, msg.fields);
+    if (!designer) {
+        var options = new S.Designer.StiDesignerOptions();
+        options.appearance.fullScreenMode = false;
+        options.height = '100%';
+        designer = new S.Designer.StiDesigner(options, 'StiDesigner', false);
+        document.getElementById('designer').innerHTML = '';
+        designer.renderHtml('designer');
+    }
+    designer.report = report;
+}
+window.addEventListener('message', function (e) {
+    if (e.source !== parent || !e.data || e.data.type !== 'build') return;
+    try { build(e.data); }
+    catch (err) { document.getElementById('designer').innerHTML = '<div class="msg"></div>'; document.querySelector('.msg').textContent = 'Stimulsoft error: ' + err; designer = null; }
+});
+if (!S) document.querySelector('.msg').textContent = 'Could not load Stimulsoft. Check your internet connection.';
+else parent.postMessage({ type: 'report-ready' }, '*');
+<\/script></body></html>`;
+
+const reportModal = document.getElementById('report-modal');
+let reportFrame = null;
+let reportReady = false;
+
+function sendReport() {
+    if (reportFrame && reportReady) reportFrame.contentWindow.postMessage({ type: 'build', ...sampleSubmission(lastComponents) }, '*');
+}
+
+window.addEventListener('message', (e) => {
+    if (reportFrame && e.source === reportFrame.contentWindow && e.data && e.data.type === 'report-ready') {
+        reportReady = true;
+        sendReport();
+    }
+});
+
+document.getElementById('btn-report').addEventListener('click', () => {
+    reportModal.classList.remove('hidden');
+    if (!reportFrame) {
+        reportFrame = document.createElement('iframe');
+        reportFrame.id = 'report-frame';
+        reportFrame.srcdoc = REPORT_HTML;
+        document.getElementById('report-frame-wrap').appendChild(reportFrame);
+    } // reopening keeps your Designer changes; "Rebuild from form" starts fresh
+});
+document.getElementById('btn-report-rebuild').addEventListener('click', sendReport);
+document.getElementById('btn-close-report').addEventListener('click', () => reportModal.classList.add('hidden'));
+
 // --- Pre-fill Example ---
 shorthand.setValue(`[panel] Employee Onboarding
 ![textfield] First Name

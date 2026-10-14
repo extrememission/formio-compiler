@@ -42,6 +42,7 @@
                 <div class="pane-toolbar">
                     <button id="btn-copy" class="btn-text" title="Copy Schema"><i class="fa-regular fa-copy"></i></button>
                     <button id="btn-download" class="btn-text" title="Download Schema"><i class="fa-solid fa-download"></i></button>
+                    <button id="btn-report" class="btn-text" title="Try this form in the Stimulsoft report designer"><i class="fa-solid fa-file-pdf"></i></button>
                     <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
                     <label class="wrapper-check" title="Checked: one { } object, wrapped in a Panel if needed. Select all in a component's schema and paste over it.&#10;Unchecked: a [ ] array. Paste over an empty &quot;components&quot;: [ ]."><input type="checkbox" id="chk-wrapper"> Wrapper</label>
                     <div class="font-controls" style="margin-left: auto;">
@@ -90,6 +91,21 @@
                     <!-- Populated by JS -->
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Stimulsoft Report Modal -->
+    <div id="report-modal" class="modal-overlay hidden">
+        <div class="modal-content report-modal">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-file-pdf"></i> Stimulsoft Report Test</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="report-note">Trial version: PDFs carry a watermark. Sample data is in form order.</span>
+                    <button id="btn-report-rebuild" class="btn-primary" style="font-size: 12px; padding: 4px 8px;" title="Rebuild the sample data and report from the current form"><i class="fa-solid fa-rotate"></i> Rebuild from form</button>
+                    <button id="btn-close-report" class="btn-icon" title="Close" style="margin-left: 10px;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div id="report-frame-wrap"></div>
         </div>
     </div>
 
