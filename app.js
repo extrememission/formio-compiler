@@ -1203,15 +1203,14 @@ function build(msg) {
     report.regData('Submission', 'Submission', dataSet);
     report.dictionary.synchronize();
     layout(report, msg.fields);
-    if (!designer) {
-        var options = new S.Designer.StiDesignerOptions();
-        options.appearance.fullScreenMode = false;
-        options.height = '100%';
-        designer = new S.Designer.StiDesigner(options, 'StiDesigner', false);
-        document.getElementById('designer').innerHTML = '';
-        designer.renderHtml('designer');
-    }
-    designer.report = report;
+    if (designer) { designer.report = report; return; }
+    var options = new S.Designer.StiDesignerOptions();
+    options.appearance.fullScreenMode = false;
+    options.height = '100%';
+    designer = new S.Designer.StiDesigner(options, 'StiDesigner', false);
+    designer.report = report; // must be set before renderHtml, or the designer has no current page yet
+    document.getElementById('designer').innerHTML = '';
+    designer.renderHtml('designer');
 }
 window.addEventListener('message', function (e) {
     if (e.source !== parent || !e.data || e.data.type !== 'build') return;
