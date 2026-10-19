@@ -46,6 +46,18 @@ Add a `!` before any component to instantly mark it as required.
 ![textfield] Last Name
 ```
 
+### Values = Labels (The @ Modifier)
+By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]` or `[select]` to make every choice's value exactly its label. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
+```text
+@[radio] Shift
+- Day Shift
+- Night Shift
+
+!@[select] Country
++++ !@[radio]
+```
+Flagged with ⚠ in the margin (hover for details): duplicate choices in an `@` question (same value twice), empty `- ` choices (skipped), and `@` on anything other than radio/select (ignored — `fs` selects and checkboxes included).
+
 ### Multiple Choice
 Type your component and question, then list your choices directly underneath using dashes. (The old comma-separated inline syntax `[radio: Yes, No]` is also still supported for simple lists.)
 ```text
@@ -119,6 +131,20 @@ Are you over 18?
 Are you a veteran?
 +++
 ```
+
+#### Bulk Mode with Notes
+Add a word after the bracket to give every question a notes box (radio and select only). The word becomes the notes box's label; any word works (`Notes`, `Explain`, `Comments`...).
+```text
++++ ![radio] Notes?     ← conditional: adds a "Notes" choice to every question; picking it opens a REQUIRED notes box
+- Yes
+- No
+Ladder inspected?
+Harness worn?
++++
+
++++ ![radio] Notes      ← always: every question gets an OPTIONAL notes box underneath, no extra choice
+```
+Notes boxes auto-expand as you type, sit right under their question, and get a key tied to it (`ladderInspected_k2p0_notes`). If someone switches away from the Notes choice, the box hides but what they typed is kept. Works with `!` and `@`, and inside a `[repeat]`. Plain `+++ ![radio]` (nothing after the bracket) works exactly as before.
 
 ---
 

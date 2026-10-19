@@ -284,6 +284,11 @@ if (layout.previewOpen) ensurePreviewFrame();
 const lookupLabels = { fsworkers: 'Worker', fsproject: 'Project', fsequipment: 'Equipment', fscompany: 'Company', fsdivision: 'Division' };
 let usedLookupKeys = new Set(); // reset each compile; first use gets the plain key, repeats get a suffix
 const repeatFirstKey = new WeakMap(); // repeat group → key of its first copy's header, for cursor sync
+const asIsComps = new WeakSet(); // radio/select marked with @: choice values = labels exactly
+let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin; reset each compile
+
+// @ radio/select keep the label as the value; everything else gets a unique smart key
+const choiceValue = (comp, opt) => asIsComps.has(comp) ? opt : generateSmartKey(opt);
 
 function generateSmartKey(label) {
     if (!label) return 'comp_' + Math.random().toString(36).substring(2,6);
@@ -314,11 +319,18 @@ function unrollRepeatGroup(groupDef) {
         if (i === 1) repeatFirstKey.set(groupDef, header.key);
         results.push(header);
 
+        const groupKeys = new Set(groupDef.components.map(c => c.key));
         groupDef.components.forEach(comp => {
             let clone = JSON.parse(JSON.stringify(comp));
             clone.key = `${clone.key}_${i}`;
             clone.clearOnHide = false; // PREVENT DATA WIPE BUG IN EDIT MODE
-            if (condObj) clone.conditional = condObj;
+            if (clone.conditional && groupKeys.has(clone.conditional.when)) {
+                // Points at a sibling in this copy (e.g. bulk notes → its question): follow the renamed key.
+                // If the copy is hidden, its question is empty, so this stays hidden too.
+                clone.conditional = { ...clone.conditional, when: `${clone.conditional.when}_${i}` };
+            } else if (condObj) {
+                clone.conditional = condObj;
+            }
             results.push(clone);
         });
 
@@ -350,7 +362,7 @@ function unrollRepeatGroup(groupDef) {
     return results;
 }
 
-function buildComponent(type, label, choicesStr, isRequired) {
+function buildComponent(type, label, choicesStr, isRequired, asIs) {
     const isContainer = ['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(type);
     if (isContainer) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
@@ -465,13 +477,14 @@ value = true;`
 
     const base = { label: label, key: generateSmartKey(label), type: type, input: true, tableView: true };
     if (isRequired) base.validate = { required: true };
+    if (asIs && (type === 'radio' || type === 'select')) asIsComps.add(base);
 
     if (type === 'radio' || type === 'selectboxes') {
-        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: generateSmartKey(opt) })) : [];
+        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
         base.values = optionsArray;
     } else if (type === 'select') {
         base.dataSrc = 'values';
-        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: generateSmartKey(opt) })) : [];
+        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
         base.data = { values: optionsArray };
     } else if (type === 'checkbox') {
         base.inputType = 'checkbox';
@@ -527,7 +540,9 @@ value = true;`
 }
 
 function parseComponentDef(str) {
-    const required = str.startsWith('!');
+    const prefix = str.match(/^[!@]*/)[0]; // ! = required, @ = choice values as-is; either order
+    const required = prefix.includes('!');
+    const asIs = prefix.includes('@');
     const bracketMatch = str.match(/\[(.*?)\]/);
     if (!bracketMatch) return null;
     
@@ -542,13 +557,49 @@ function parseComponentDef(str) {
         type = inside.trim().toLowerCase();
     }
     let label = str.substring(str.indexOf(']') + 1).trim();
-    return { type, choices, required, label };
+    return { type, choices, required, asIs, label };
+}
+
+// Adds one "- choice" to a radio/selectboxes/select, flagging empty and (for @) duplicate choices
+function addChoice(comp, optText, row) {
+    if (!['radio', 'selectboxes', 'select'].includes(comp.type)) return;
+    if (!optText) {
+        compileWarnings.push({ row, text: 'Empty choice: skipped' });
+        return;
+    }
+    const list = comp.type === 'select'
+        ? ((comp.data = comp.data || { values: [] }).values = comp.data.values || [])
+        : (comp.values = comp.values || []);
+    if (asIsComps.has(comp) && list.some(o => o.value === optText)) {
+        compileWarnings.push({ row, text: `Duplicate choice "${optText}": two choices with the same value in one question` });
+    }
+    list.push({ label: optText, value: choiceValue(comp, optText) });
+}
+
+// Bulk notes: a notes box under a question. Conditional = adds the term as a choice that opens a required box;
+// always = an optional box with no extra choice. Hidden notes are kept (clearOnHide: false).
+function buildNotes(question, term, conditional) {
+    const notes = { label: term, key: question.key + '_notes', type: 'textarea', autoExpand: true, input: true, tableView: true, clearOnHide: false };
+    if (conditional) {
+        const value = choiceValue(question, term);
+        (question.type === 'select' ? question.data.values : question.values).push({ label: term, value });
+        notes.validate = { required: true };
+        notes.conditional = { show: true, when: question.key, eq: value };
+    }
+    return notes;
+}
+
+function flagUnusedAsIs(def, row) {
+    if (def && def.asIs && !['radio', 'select'].includes(def.type)) {
+        compileWarnings.push({ row, text: '@ only applies to radio and select choices: ignored here' });
+    }
 }
 
 function compileShorthand() {
     const lines = shorthand.session.getDocument().getAllLines();
     const lineComps = []; // source row → component it produced (for cursor sync)
     usedLookupKeys = new Set();
+    compileWarnings = [];
     let rootComponents = [];
     let containerStack = [];
     let inBulkMode = false;
@@ -581,43 +632,71 @@ function compileShorthand() {
             lastFieldComponent = null;
             if (inBulkMode) { inBulkMode = false; bulkDef = null; } 
             else { 
-                inBulkMode = true; 
+                inBulkMode = true;
                 bulkDef = parseComponentDef(line.substring(3).trim());
                 bulkDef.markdownChoices = [];
+                flagUnusedAsIs(bulkDef, i);
+                // Text after the bracket switches on notes: "Notes?" = conditional + required, "Notes" = always + optional
+                const term = (bulkDef.label || '').trim();
+                bulkDef.notesConditional = term.endsWith('?');
+                bulkDef.notesTerm = bulkDef.notesConditional ? term.slice(0, -1).trim() : term;
+                bulkDef.row = i;
+                if (bulkDef.notesTerm && !['radio', 'select'].includes(bulkDef.type)) {
+                    compileWarnings.push({ row: i, text: `Notes ("${term}") only work with radio and select bulk blocks: ignored` });
+                    bulkDef.notesTerm = '';
+                }
             }
             continue;
         }
 
         if (inBulkMode && bulkDef) {
-            if (line.startsWith('- ')) {
-                bulkDef.markdownChoices.push(line.substring(2).trim());
+            if (line.startsWith('- ') || line === '-') {
+                // Flag once here, not once per question below
+                const opt = line.substring(2).trim();
+                if (!opt) {
+                    compileWarnings.push({ row: i, text: 'Empty choice: skipped' });
+                } else {
+                    if (bulkDef.asIs && bulkDef.markdownChoices.includes(opt)) {
+                        compileWarnings.push({ row: i, text: `Duplicate choice "${opt}": two choices with the same value in one question` });
+                    }
+                    bulkDef.markdownChoices.push(opt);
+                }
                 continue;
             }
 
-            const comp = buildComponent(bulkDef.type, line, bulkDef.choices, bulkDef.required);
+            const comp = buildComponent(bulkDef.type, line, bulkDef.choices, bulkDef.required, bulkDef.asIs);
             if (bulkDef.markdownChoices.length > 0) {
                 if (comp.type === 'radio' || comp.type === 'selectboxes') {
                     comp.values = comp.values || [];
                     bulkDef.markdownChoices.forEach(opt => {
-                        comp.values.push({ label: opt, value: generateSmartKey(opt) });
+                        comp.values.push({ label: opt, value: choiceValue(comp, opt) });
                     });
                 } else if (comp.type === 'select') {
                     comp.data = comp.data || { values: [] };
                     comp.data.values = comp.data.values || [];
                     bulkDef.markdownChoices.forEach(opt => {
-                        comp.data.values.push({ label: opt, value: generateSmartKey(opt) });
+                        comp.data.values.push({ label: opt, value: choiceValue(comp, opt) });
                     });
                 }
             }
             pushComponent(comp);
             lineComps[i] = comp;
+            if (bulkDef.notesTerm) {
+                const listed = (comp.type === 'select' ? comp.data.values : comp.values).map(o => o.label);
+                if (bulkDef.notesConditional && listed.includes(bulkDef.notesTerm) && !bulkDef.flaggedDup) {
+                    compileWarnings.push({ row: bulkDef.row, text: `"${bulkDef.notesTerm}" is already a listed choice; it's added automatically, so it will appear twice` });
+                    bulkDef.flaggedDup = true;
+                }
+                pushComponent(buildNotes(comp, bulkDef.notesTerm, bulkDef.notesConditional));
+            }
             continue;
         }
 
-        if (line.match(/^!?\[/)) {
+        if (line.match(/^[!@]*\[/)) {
             const def = parseComponentDef(line);
             if (def) {
-                const comp = buildComponent(def.type, def.label, def.choices, def.required);
+                flagUnusedAsIs(def, i);
+                const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
@@ -630,18 +709,9 @@ function compileShorthand() {
                     lastFieldComponent = comp;
                 }
             }
-        } else if (line.startsWith('- ') && lastFieldComponent) {
+        } else if ((line.startsWith('- ') || line === '-') && lastFieldComponent) {
             lineComps[i] = lastFieldComponent;
-            const optText = line.substring(2).trim();
-            const optObj = { label: optText, value: generateSmartKey(optText) };
-            if (lastFieldComponent.type === 'radio' || lastFieldComponent.type === 'selectboxes') {
-                lastFieldComponent.values = lastFieldComponent.values || [];
-                lastFieldComponent.values.push(optObj);
-            } else if (lastFieldComponent.type === 'select') {
-                lastFieldComponent.data = lastFieldComponent.data || { values: [] };
-                lastFieldComponent.data.values = lastFieldComponent.data.values || [];
-                lastFieldComponent.data.values.push(optObj);
-            }
+            addChoice(lastFieldComponent, line.substring(2).trim(), i);
         } else {
             lastFieldComponent = null;
         }
@@ -941,7 +1011,9 @@ const quickSnippets = [
     { name: 'html', desc: 'HTML Element', syntax: '[html: ${2:h2}] ${1:Heading}' },
     { name: 'content', desc: 'HTML Content', syntax: '[content] ${1:<p>Content</p>}' },
     { name: 'print', desc: 'Clean Print Button', syntax: '[print] ${1:Print}' },
-    { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' }
+    { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' },
+    { name: 'bulknotesif', desc: 'Bulk + notes when picked', syntax: '+++ ![radio] ${1:Notes}?\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' },
+    { name: 'bulknotes', desc: 'Bulk + always-on notes', syntax: '+++ ![radio] ${1:Notes}\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' }
 ];
 
 const stripPlaceholders = (syntax) => syntax.replace(/\$\{\d+:([^}]*)\}/g, '$1');
@@ -1056,6 +1128,7 @@ function checkBadChars() {
         });
         if (names.size) annotations.push({ row, column: 0, type: 'warning', text: 'Form.io may garble: ' + [...names].join(', ') });
     });
+    compileWarnings.forEach(w => annotations.push({ row: w.row, column: 0, type: 'warning', text: w.text }));
     session.setAnnotations(annotations);
     fixCharsBtn.hidden = count === 0;
     fixCharsBtn.textContent = `⚠ ${count} special character${count === 1 ? '' : 's'} · Fix`;
