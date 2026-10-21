@@ -19,12 +19,17 @@ const defaultTemplates = [
         name: "Template: Jobsite Hazard Assessment",
         date: "System Default",
         shorthand: "[panel] Jobsite Hazard Assessment (JHA)\n[textfield] Project Name\n[textfield] Job Location\n![date] Date of Assessment\n![textfield] Supervisor / Competent Person\n\n[well] Required PPE\n[selectboxes] Personal Protective Equipment (PPE) Check\n- Hard Hat\n- Safety Glasses\n- Steel Toe Boots\n- High Visibility Vest\n- Gloves\n- Fall Protection\n- Hearing Protection\n\n[panel] Hazard Identification\n[content] <p>Please list the potential hazards identified for today's tasks and the control measures that will be implemented.</p>\n[repeat: 5] Hazard & Control Measure\n![textfield] Task / Activity\n![select] Hazard Type\n- Fall Hazard\n- Electrical\n- Struck-By\n- Caught-In/Between\n- Chemical / Hazardous Material\n- Ergonomic / Manual Lifting\n![textarea] Mitigation / Control Strategy\n\n\n[panel] Crew Sign-Off\n[content] <p>All crew members must sign below indicating they have been briefed on the hazards and controls.</p>\n[signature] Crew Member 1\n[signature] Crew Member 2\n[signature] Crew Member 3"
+    },
+    {
+        name: "Template: Time & Materials",
+        date: "System Default",
+        shorthand: "[panel] Time & Materials\n[textfield] Job Description\n![date] Work Date\n[fieldset] Labor\n![number] Labor Hours\n![currency] Hourly Rate\n[currency: =Labor Hours * Hourly Rate] Labor Total\n\n[fieldset] Materials\n[currency] Materials Cost\n[number: 0-100] Markup Percent\n[currency: =Materials Cost + Materials Cost * Markup Percent / 100] Materials Total\n\n[fieldset] Totals\n[currency: =Labor Total + Materials Total] Subtotal\n[number: 0-20] Tax Rate Percent\n[currency: =Subtotal * Tax Rate Percent / 100] Tax\n[currency: =Subtotal + Tax] Grand Total"
     }
 ];
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 2);
+    const request = indexedDB.open('FormioCompilerDB', 3);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -286,6 +291,8 @@ let usedLookupKeys = new Set(); // reset each compile; first use gets the plain 
 const repeatFirstKey = new WeakMap(); // repeat group → key of its first copy's header, for cursor sync
 const asIsComps = new WeakSet(); // radio/select marked with @: choice values = labels exactly
 let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin; reset each compile
+let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
+const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
 
 // @ radio/select keep the label as the value; everything else gets a unique smart key
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? opt : generateSmartKey(opt);
@@ -479,6 +486,13 @@ value = true;`
     if (isRequired) base.validate = { required: true };
     if (asIs && (type === 'radio' || type === 'select')) asIsComps.add(base);
 
+    // "[currency: =Hours * Rate] Total": a formula written with labels; keys are filled in later
+    const formula = choicesStr && choicesStr.startsWith('=') ? choicesStr.slice(1).trim() : null;
+    if (formula) {
+        formulaOf.set(base, formula);
+        choicesStr = '';
+    }
+
     if (type === 'radio' || type === 'selectboxes') {
         let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
         base.values = optionsArray;
@@ -509,7 +523,13 @@ value = true;`
         base.backgroundColor = "rgb(245,245,235)";
         base.minWidth = "0.5";
         base.maxWidth = "2.5";
-    } else if (type === 'phoneNumber') {
+    } else if (type === 'currency') {
+        // Shows $1,234.56; saves the plain number 1234.56 so it can be used in calculations
+        base.currency = 'USD';
+        base.delimiter = true;
+        base.decimalLimit = 2;
+        base.requireDecimal = true;
+    } else if (type === 'phonenumber') { // types arrive lowercased; Form.io's real type is camelCase
         base.type = 'phoneNumber';
         base.inputType = 'tel';
         base.inputMask = '(999) 999-9999';
@@ -589,6 +609,44 @@ function buildNotes(question, term, conditional) {
     return notes;
 }
 
+// Turn "Hours * Hourly Rate + Materials" into Form.io's calculateValue using each label's real key.
+// Labels are matched case-insensitively; numbers and + - * / ( ) pass through. Result is rounded to cents and read-only.
+function resolveFormulas(pending, rootComponents) {
+    const keysByLabel = new Map();
+    const outputKeys = new Set();
+    const walk = (list) => list.forEach(c => {
+        outputKeys.add(c.key);
+        if (c.input && c.label) {
+            const label = c.label.trim().toLowerCase();
+            keysByLabel.set(label, [...(keysByLabel.get(label) || []), c.key]);
+        }
+        if (c.components) walk(c.components);
+    });
+    walk(rootComponents);
+
+    pending.forEach(({ comp, formula, row }) => {
+        if (!outputKeys.has(comp.key)) {
+            compileWarnings.push({ row, text: "Formulas inside a [repeat] aren't supported: ignored" });
+            return;
+        }
+        const problems = [];
+        const expr = formula.split(/([+\-*/()])/).map(part => {
+            const t = part.trim();
+            if (!t || /^[+\-*/()]$/.test(t) || /^\d+(\.\d+)?$/.test(t)) return t;
+            const keys = keysByLabel.get(t.toLowerCase()) || [];
+            if (keys.length === 0) problems.push(`no field labeled "${t}"`);
+            else if (keys.length > 1) problems.push(`"${t}" matches ${keys.length} fields; labels in a formula must be unique`);
+            else if (keys[0] === comp.key) problems.push(`"${t}" is this field itself`);
+            else return `(Number(data.${keys[0]}) || 0)`;
+            return '0';
+        }).join(' ');
+        comp.calculateValue = `value = Math.round((${expr}) * 100) / 100;`;
+        comp.disabled = true; // read-only: nobody types over a total
+        if (problems.length) compileWarnings.push({ row, text: 'Formula problem: ' + problems.join('; ') });
+        else compileHints.push({ row, text: `Calculated: ${comp.label} = ${formula} (rounded to cents, read-only, updates live)` });
+    });
+}
+
 function flagUnusedAsIs(def, row) {
     if (def && def.asIs && !['radio', 'select'].includes(def.type)) {
         compileWarnings.push({ row, text: '@ only applies to radio and select choices: ignored here' });
@@ -600,6 +658,8 @@ function compileShorthand() {
     const lineComps = []; // source row → component it produced (for cursor sync)
     usedLookupKeys = new Set();
     compileWarnings = [];
+    compileHints = [];
+    const pendingFormulas = [];
     let rootComponents = [];
     let containerStack = [];
     let inBulkMode = false;
@@ -698,6 +758,7 @@ function compileShorthand() {
                 flagUnusedAsIs(def, i);
                 const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
+                if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
                         pushComponent(comp);
@@ -724,6 +785,7 @@ function compileShorthand() {
             unrolled.forEach(c => pushComponent(c));
         }
     }
+    resolveFormulas(pendingFormulas, rootComponents);
 
     // Components mode: array, pasted over a "components": [ ]
     // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
@@ -994,6 +1056,8 @@ const quickSnippets = [
     { name: 'textarea', desc: 'Text Area', syntax: '[textarea] ${1:Text Area}' },
     { name: 'number', desc: 'Number Input', syntax: '[number] ${1:Number}' },
     { name: 'numberrange', desc: 'Number (Min/Max)', syntax: '[number: ${2:1-5}] ${1:Number}' },
+    { name: 'currency', desc: 'US Dollars ($)', syntax: '[currency] ${1:Amount}' },
+    { name: 'total', desc: 'Calculated $ Total', syntax: '[currency: =${2:Hours * Rate}] ${1:Total}' },
     { name: 'phoneNumber', desc: 'Phone Number', syntax: '[phoneNumber] ${1:Phone Number}' },
     { name: 'datetime', desc: 'Date & Time', syntax: '[datetime] ${1:Date Time}' },
     { name: 'date', desc: 'Date Only', syntax: '[date] ${1:Date}' },
@@ -1129,6 +1193,7 @@ function checkBadChars() {
         if (names.size) annotations.push({ row, column: 0, type: 'warning', text: 'Form.io may garble: ' + [...names].join(', ') });
     });
     compileWarnings.forEach(w => annotations.push({ row: w.row, column: 0, type: 'warning', text: w.text }));
+    compileHints.forEach(h => annotations.push({ row: h.row, column: 0, type: 'info', text: h.text }));
     session.setAnnotations(annotations);
     fixCharsBtn.hidden = count === 0;
     fixCharsBtn.textContent = `⚠ ${count} special character${count === 1 ? '' : 's'} · Fix`;

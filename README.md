@@ -14,7 +14,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file. Download opens your system's Save dialog so you can name the file (Chrome/Edge; other desktop browsers ask for a name, mobile opens the share sheet). The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
-*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, and a Jobsite Hazard Assessment). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
+*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, a Jobsite Hazard Assessment, and a Time & Materials calculator showing chained currency formulas). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
 *   **Live Form Preview:** A third column renders the actual form with Form.io's open-source renderer. Collapse it to a thin strip on the right edge, or open it and drag its divider to size it. `fs` lookup selects get 5 demo options in the preview only — the copied JSON is untouched. Needs an internet connection to load the renderer.
 *   **Comfortable Workspace:** Light/dark theme toggle, adjustable JSON font size (A−/A+), and draggable dividers between all panes. Column widths and whether the preview is open are remembered in this browser.
@@ -105,6 +105,20 @@ Define min and max limits for numbers. The compiler will automatically calculate
 [number: 1-5] Priority Rating
 [number: 1-1000] Employee Count
 ```
+
+### Currency & Calculated Totals
+`[currency]` is a US-dollar field: it shows `$1,234.56` but saves the plain number `1234.56`, so it can be used in calculations, reports, and PDFs.
+
+Add a formula after `=` to make a calculated, read-only total. Write it with the **labels** of other fields — the compiler swaps in their real keys on every compile, so formulas never break when keys regenerate:
+```text
+[number] Hours
+[currency] Hourly Rate
+[currency] Materials
+[currency: =Hours * Hourly Rate + Materials] Total
+```
+*Total* updates live as people type and is rounded to cents. Formulas support `+ - * /`, parentheses, and plain numbers (`=Subtotal * 1.07`); they work on `[number]` too. Labels match regardless of capitalization.
+
+Hover the margin for help: ⓘ shows how a formula was read; ⚠ flags a label that doesn't exist, matches more than one field (labels in formulas must be unique), or points at the field itself. Formulas inside a `[repeat]` aren't supported yet.
 
 ### HTML & Content
 Drop static text into your form. `[html]` takes the HTML tag after the colon (defaults to `p`); `[content]` accepts raw HTML.
