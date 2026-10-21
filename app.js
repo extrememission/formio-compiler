@@ -24,12 +24,17 @@ const defaultTemplates = [
         name: "Template: Time & Materials",
         date: "System Default",
         shorthand: "[panel] Time & Materials\n[textfield] Job Description\n![date] Work Date\n[fieldset] Labor\n![number] Labor Hours\n![currency] Hourly Rate\n[currency: =Labor Hours * Hourly Rate] Labor Total\n\n[fieldset] Materials\n[currency] Materials Cost\n[number: 0-100] Markup Percent\n[currency: =Materials Cost + Materials Cost * Markup Percent / 100] Materials Total\n\n[fieldset] Totals\n[currency: =Labor Total + Materials Total] Subtotal\n[number: 0-20] Tax Rate Percent\n[currency: =Subtotal * Tax Rate Percent / 100] Tax\n[currency: =Subtotal + Tax] Grand Total"
+    },
+    {
+        name: "Template: Service Record (T&M)",
+        date: "System Default",
+        shorthand: "[panel] Materials & Parts Used\n[editgrid: Qty#(s), !Part # / Description(xl), Unit(s), Unit Price$, Ext. Price$] Materials\n= Ext. Price: Qty * Unit Price\n\n\n[panel] Labor & Other Charges\n[editgrid: !Labor / Charge Description(l), Hours#(s), Rate$, Amount$, Notes(l)] Labor\n= Amount: Hours * Rate\n\n\n[panel] Summary / Billing\n[textarea] Technician Recommendations\n[currency: =SUM(Ext. Price)] Materials Subtotal\n[currency: =SUM(Amount)] Labor Subtotal\n[currency] Travel / Equipment\n[currency] Other Charges\n[currency] Sales Tax\n[currency: =Materials Subtotal + Labor Subtotal + \"Travel / Equipment\" + Other Charges + Sales Tax] Total"
     }
 ];
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 3);
+    const request = indexedDB.open('FormioCompilerDB', 4);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -294,6 +299,67 @@ let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin;
 let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
 const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
 
+// --- Edit Grid columns: [editgrid: !Item(xl), Qty#(s), Unit Price$, Line Total$] Materials ---
+// Attached $ = currency, attached # = number (so "Part #" stays text), ! = required, (s)/(l)/(xl) = width.
+const WIDTH_WEIGHTS = { s: 1, normal: 2, l: 3, xl: 5 };
+
+function parseGridColumns(columnsStr) {
+    return columnsStr.split(',').map(s => s.trim()).filter(Boolean).map(raw => {
+        let text = raw;
+        const required = text.startsWith('!');
+        if (required) text = text.slice(1).trim();
+        let width = 'normal';
+        const w = text.match(/\((s|l|xl)\)\s*$/i);
+        if (w) { width = w[1].toLowerCase(); text = text.slice(0, w.index).trim(); }
+        let type = 'textfield';
+        const marker = text.match(/[^\s]([$#])$/);
+        if (marker) { type = marker[1] === '$' ? 'currency' : 'number'; text = text.slice(0, -1).trim(); }
+        return { label: text, type, required, width };
+    });
+}
+
+// Split 10 Bootstrap units across the columns by weight (the last 2 of 12 hold the edit/delete buttons)
+function gridColumnUnits(columns) {
+    const weights = columns.map(c => WIDTH_WEIGHTS[c.width]);
+    const total = weights.reduce((a, b) => a + b, 0);
+    const units = weights.map(w => Math.max(1, Math.round(w * 10 / total)));
+    let diff = 10 - units.reduce((a, b) => a + b, 0);
+    while (diff !== 0) { // nudge the widest column until the row adds up exactly
+        const i = units.indexOf(Math.max(...units));
+        if (diff < 0 && units[i] <= 1) break;
+        units[i] += Math.sign(diff);
+        diff -= Math.sign(diff);
+    }
+    return units;
+}
+
+// Form.io's default Edit Grid templates, with per-column widths instead of col-sm-2 for every column
+function gridTemplates(widthByKey) {
+    const w = JSON.stringify(widthByKey);
+    return {
+        header: `<div class="row">{% var w = ${w}; %}{% util.eachComponent(components, function(component) { %}{% if (displayValue(component)) { %}<div class="col-sm-{{ w[component.key] || 2 }}">{{ t(component.label) }}</div>{% } %}{% }) %}<div class="col-sm-2"></div></div>`,
+        row: `<div class="row">{% var w = ${w}; %}{% util.eachComponent(components, function(component) { %}{% if (displayValue(component)) { %}<div class="col-sm-{{ w[component.key] || 2 }}">{{ isVisibleInRow(component) ? getView(component, row[component.key]) : '' }}</div>{% } %}{% }) %}{% if (!instance.options.readOnly && !instance.disabled) { %}<div class="col-sm-2"><div class="btn-group pull-right"><button class="btn btn-default btn-light btn-sm editRow"><i class="{{ iconClass('edit') }}"></i></button>{% if (!instance.hasRemoveButtons || instance.hasRemoveButtons()) { %}<button class="btn btn-danger btn-sm removeRow"><i class="{{ iconClass('trash') }}"></i></button>{% } %}</div></div>{% } %}</div>`
+    };
+}
+
+// "= Line Total: Qty * Unit Price" on the line after a grid: a per-row calculated column (uses row.key)
+function addRowFormula(grid, text, row) {
+    const m = text.match(/^=\s*(?:"([^"]+)"|([^:]+)):(.+)$/);
+    if (!m) {
+        compileWarnings.push({ row, text: 'Row formula format: = Column Name: formula   (e.g. = Line Total: Qty * Unit Price)' });
+        return;
+    }
+    const target = (m[1] || m[2]).trim();
+    const column = grid.components.find(c => (c.label || '').trim().toLowerCase() === target.toLowerCase());
+    if (!column) {
+        compileWarnings.push({ row, text: `Row formula: this grid has no column "${target}"` });
+        return;
+    }
+    const scope = new Map(grid.components.map(c => [(c.label || '').trim().toLowerCase(), [c.key]]));
+    const { expr, problems } = translateFormula(m[3].trim(), column, scope, null, 'row');
+    applyCalculation(column, expr, problems, row, `${column.label} = ${m[3].trim()} (each row)`);
+}
+
 // @ radio/select keep the label as the value; everything else gets a unique smart key
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? opt : generateSmartKey(opt);
 
@@ -377,6 +443,18 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         if (type === 'panel') {
             comp.title = label; // text shown in the panel's header bar
             comp.theme = 'primary';
+        }
+
+        if (type === 'editgrid' && choicesStr) {
+            const columns = parseGridColumns(choicesStr);
+            const units = gridColumnUnits(columns);
+            const widthByKey = {};
+            comp.components = columns.map((col, i) => {
+                const child = buildComponent(col.type, col.label, '', col.required);
+                widthByKey[child.key] = units[i];
+                return child;
+            });
+            comp.templates = gridTemplates(widthByKey);
         }
 
         if (type === 'repeat') {
@@ -609,41 +687,89 @@ function buildNotes(question, term, conditional) {
     return notes;
 }
 
-// Turn "Hours * Hourly Rate + Materials" into Form.io's calculateValue using each label's real key.
-// Labels are matched case-insensitively; numbers and + - * / ( ) pass through. Result is rounded to cents and read-only.
+// Turn a label-based formula into JavaScript for Form.io's calculateValue.
+// Tokens: SUM(Column) / SUM(Grid.Column) / SUM("Quoted"), "Quoted Label", numbers, + - * / ( ), and plain labels.
+// scope maps lowercase label → keys; grids lists editgrids for SUM; mode 'data' (form fields) or 'row' (inside a grid row).
+function translateFormula(formula, comp, scope, grids, mode) {
+    const problems = [];
+    const ref = (key) => `(Number(${mode}.${key}) || 0)`;
+    const resolveLabel = (label) => {
+        const keys = scope.get(label.toLowerCase()) || [];
+        if (keys.length === 0) problems.push(`no field labeled "${label}"`);
+        else if (keys.length > 1) problems.push(`"${label}" matches ${keys.length} fields; labels in a formula must be unique`);
+        else if (keys[0] === comp.key) problems.push(`"${label}" is this field itself`);
+        else return ref(keys[0]);
+        return '0';
+    };
+    const resolveSum = (target) => {
+        if (mode === 'row') { problems.push('SUM() totals a whole grid; use it in a field below the grid'); return '0'; }
+        const find = (gridLabel, colLabel) => (grids || []).filter(g => (!gridLabel || g.label === gridLabel) && g.cols.has(colLabel));
+        let col = target.toLowerCase(), matches = find(null, col);
+        // "Grid.Column": try each period as the split (column names like "Ext. Price" contain periods too)
+        for (let i = target.indexOf('.'); matches.length === 0 && i !== -1; i = target.indexOf('.', i + 1)) {
+            col = target.slice(i + 1).trim().toLowerCase();
+            matches = find(target.slice(0, i).trim().toLowerCase(), col);
+        }
+        if (matches.length === 0) { problems.push(`SUM: no grid column "${target}"`); return '0'; }
+        if (matches.length > 1) { problems.push(`SUM: "${target}" is a column in ${matches.length} grids; write SUM(Grid Name.${target})`); return '0'; }
+        return `(data.${matches[0].key} || []).reduce((s, r) => s + (Number(r.${matches[0].cols.get(col)}) || 0), 0)`;
+    };
+    const parts = [];
+    const re = /SUM\(\s*(?:"([^"]+)"|([^)]*?))\s*\)|"([^"]*)"|([+\-*/()])|([^+\-*/()"]+)/gi;
+    let m;
+    while ((m = re.exec(formula))) {
+        if (m[1] !== undefined || m[2] !== undefined) parts.push(resolveSum((m[1] || m[2]).trim()));
+        else if (m[3] !== undefined) parts.push(resolveLabel(m[3].trim()));
+        else if (m[4]) parts.push(m[4]);
+        else {
+            const t = m[5].trim();
+            if (!t) continue;
+            parts.push(/^\d+(\.\d+)?$/.test(t) ? t : resolveLabel(t));
+        }
+    }
+    if (problems.some(p => p.startsWith('no field')) && /[+\-*/()]/.test(formula)) {
+        problems.push('labels containing + - * / ( ) need quotes, e.g. "Travel / Equipment"');
+    }
+    return { expr: parts.join(' ') || '0', problems };
+}
+
+// Read-only calculated field; only currency rounds to cents
+function applyCalculation(comp, expr, problems, row, description) {
+    const money = comp.type === 'currency';
+    comp.calculateValue = money ? `value = Math.round((${expr}) * 100) / 100;` : `value = ${expr};`;
+    comp.disabled = true; // read-only: nobody types over a total
+    if (problems.length) compileWarnings.push({ row, text: 'Formula problem: ' + problems.join('; ') });
+    else compileHints.push({ row, text: `Calculated: ${description} (${money ? 'rounded to cents, ' : ''}read-only, updates live)` });
+}
+
+// Top-level "[currency: =...]" formulas, resolved once the whole form exists (labels can point anywhere)
 function resolveFormulas(pending, rootComponents) {
     const keysByLabel = new Map();
     const outputKeys = new Set();
+    const grids = [];
     const walk = (list) => list.forEach(c => {
         outputKeys.add(c.key);
         if (c.input && c.label) {
             const label = c.label.trim().toLowerCase();
             keysByLabel.set(label, [...(keysByLabel.get(label) || []), c.key]);
         }
-        if (c.components) walk(c.components);
+        if (c.type === 'editgrid' || c.type === 'datagrid') {
+            // Grid columns are only reachable through SUM(), not as plain labels
+            grids.push({ label: (c.label || '').trim().toLowerCase(), key: c.key,
+                cols: new Map((c.components || []).map(k => [(k.label || '').trim().toLowerCase(), k.key])) });
+        } else if (c.components) {
+            walk(c.components);
+        }
     });
     walk(rootComponents);
 
     pending.forEach(({ comp, formula, row }) => {
         if (!outputKeys.has(comp.key)) {
-            compileWarnings.push({ row, text: "Formulas inside a [repeat] aren't supported: ignored" });
+            compileWarnings.push({ row, text: "Formulas inside a [repeat] or grid row aren't supported this way: ignored" });
             return;
         }
-        const problems = [];
-        const expr = formula.split(/([+\-*/()])/).map(part => {
-            const t = part.trim();
-            if (!t || /^[+\-*/()]$/.test(t) || /^\d+(\.\d+)?$/.test(t)) return t;
-            const keys = keysByLabel.get(t.toLowerCase()) || [];
-            if (keys.length === 0) problems.push(`no field labeled "${t}"`);
-            else if (keys.length > 1) problems.push(`"${t}" matches ${keys.length} fields; labels in a formula must be unique`);
-            else if (keys[0] === comp.key) problems.push(`"${t}" is this field itself`);
-            else return `(Number(data.${keys[0]}) || 0)`;
-            return '0';
-        }).join(' ');
-        comp.calculateValue = `value = Math.round((${expr}) * 100) / 100;`;
-        comp.disabled = true; // read-only: nobody types over a total
-        if (problems.length) compileWarnings.push({ row, text: 'Formula problem: ' + problems.join('; ') });
-        else compileHints.push({ row, text: `Calculated: ${comp.label} = ${formula} (rounded to cents, read-only, updates live)` });
+        const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
+        applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
     });
 }
 
@@ -752,12 +878,28 @@ function compileShorthand() {
             continue;
         }
 
+        if (line.startsWith('=')) {
+            // Row formula: must sit right under its [editgrid: ...] line (or another row formula)
+            const grid = containerStack[containerStack.length - 1];
+            if (grid && grid.type === 'editgrid') {
+                lineComps[i] = grid;
+                addRowFormula(grid, line, i);
+            } else {
+                compileWarnings.push({ row: i, text: 'A "= Column: formula" line must come right after its [editgrid: ...] line' });
+            }
+            lastFieldComponent = null;
+            continue;
+        }
+
         if (line.match(/^[!@]*\[/)) {
             const def = parseComponentDef(line);
             if (def) {
                 flagUnusedAsIs(def, i);
                 const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
+                if (def.type === 'editgrid' && def.choices && comp.components.length > 5) {
+                    compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
+                }
                 if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
@@ -1049,6 +1191,7 @@ const quickSnippets = [
     { name: 'fieldset', desc: 'Field Set Container', syntax: '[fieldset] ${1:Field Set}' },
     { name: 'repeat', desc: 'Super Group Repeater', syntax: '[repeat: ${2:3}] ${1:Repeat Group}' },
     { name: 'editgrid', desc: 'Edit Grid', syntax: '[editgrid] ${1:Edit Grid}' },
+    { name: 'editgridcols', desc: 'Edit Grid with $ / # columns + row total', syntax: '[editgrid: ${2:Item(xl), Qty#(s), Price$, Line Total$}] ${1:Items}\n= ${3:Line Total: Qty * Price}' },
     { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] ${1:Data Grid}' },
     { name: 'well', desc: 'Well Container', syntax: '[well] ${1:Well}' },
     { name: 'table', desc: 'Table Layout', syntax: '[table: ${2:2x2}] ${1:Table}' },

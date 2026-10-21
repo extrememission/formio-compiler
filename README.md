@@ -14,7 +14,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file. Download opens your system's Save dialog so you can name the file (Chrome/Edge; other desktop browsers ask for a name, mobile opens the share sheet). The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
-*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, a Jobsite Hazard Assessment, and a Time & Materials calculator showing chained currency formulas). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
+*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, a Jobsite Hazard Assessment, a Time & Materials calculator showing chained currency formulas, and a Service Record (T&M) with materials and labor grids, row totals, and SUM subtotals). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
 *   **Live Form Preview:** A third column renders the actual form with Form.io's open-source renderer. Collapse it to a thin strip on the right edge, or open it and drag its divider to size it. `fs` lookup selects get 5 demo options in the preview only — the copied JSON is untouched. Needs an internet connection to load the renderer.
 *   **Comfortable Workspace:** Light/dark theme toggle, adjustable JSON font size (A−/A+), and draggable dividers between all panes. Column widths and whether the preview is open are remembered in this browser.
@@ -116,9 +116,26 @@ Add a formula after `=` to make a calculated, read-only total. Write it with the
 [currency] Materials
 [currency: =Hours * Hourly Rate + Materials] Total
 ```
-*Total* updates live as people type and is rounded to cents. Formulas support `+ - * /`, parentheses, and plain numbers (`=Subtotal * 1.07`); they work on `[number]` too. Labels match regardless of capitalization.
+*Total* updates live as people type and is rounded to cents. Formulas support `+ - * /`, parentheses, plain numbers (`=Subtotal * 1.07`), quoted labels (`"Travel / Equipment"`), and `SUM()` of grid columns; they work on `[number]` too (no rounding there). Labels match regardless of capitalization.
 
 Hover the margin for help: ⓘ shows how a formula was read; ⚠ flags a label that doesn't exist, matches more than one field (labels in formulas must be unique), or points at the field itself. Formulas inside a `[repeat]` aren't supported yet.
+
+### Edit Grid Columns, Row Totals & SUM
+Define an Edit Grid's columns in one line. While entering a row the fields stack vertically; saved rows show as a table.
+```text
+[editgrid: Qty#(s), !Part # / Description(xl), Unit(s), Unit Price$, Ext. Price$] Materials
+= Ext. Price: Qty * Unit Price
+
+[currency: =SUM(Ext. Price)] Materials Subtotal
+```
+*   **Column types:** `$` attached to the name = currency, `#` attached = number, nothing = text. Only an *attached* marker counts, so `Part #` stays a text label. Markers are removed from the displayed name.
+*   **Required:** `!` before a column name.
+*   **Widths:** `(s)`, `(l)`, `(xl)` after a name; unmarked columns are normal. The compiler sizes the table columns to fit. More than 5 columns gets a ⚠ warning.
+*   **Row formulas:** lines starting with `=` right under the grid, as `= Column: formula`. The column becomes read-only and is calculated per row from that row's fields.
+*   **Grand totals:** `SUM(Column)` adds a column across every row, in any formula (`=SUM(Ext. Price) * 1.07`). If two grids share a column name, write `SUM(Grid Name.Column)`.
+*   **Labels with symbols:** put labels containing `+ - * / ( )` in quotes inside formulas, e.g. `"Travel / Equipment"`.
+
+Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in Favorites for a complete example.
 
 ### HTML & Content
 Drop static text into your form. `[html]` takes the HTML tag after the colon (defaults to `p`); `[content]` accepts raw HTML.
