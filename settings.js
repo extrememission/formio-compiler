@@ -88,8 +88,9 @@ function catalog(type) {
         (list || []).forEach(function (c) {
             if (!c) return;
             if (c.type === 'tabs') { (c.components || []).forEach(function (tab) { walk(tab.components, tab.label || tab.key); }); return; }
-            // Settings are input fields with a key; skip code editors (custom JS/JSON belongs in the builder)
-            if (c.input && c.key && c.type !== 'button' && !c.editor && !seen[c.key]) {
+            // Settings are input fields with a key; skip code editors (as: javascript/json belongs in the builder)
+            // but keep rich-text ones (as: html), e.g. description and tooltip
+            if (c.input && c.key && c.type !== 'button' && (!c.editor || c.as === 'html') && !seen[c.key]) {
                 seen[c.key] = 1;
                 var opts = (c.data && c.data.values) || c.values;
                 var kind = c.type === 'checkbox' ? 'boolean' : c.type === 'number' ? 'number'
