@@ -794,6 +794,18 @@ function compileShorthand() {
     let inBulkMode = false;
     let bulkDef = null;
     let lastFieldComponent = null;
+    let settingsTarget = null;   // component (or bulk block) that a "~" line under it applies to
+    const settingEntries = [];   // re-applied after formulas so ~ always wins over compiler defaults
+    settingTargetTypes = [];
+
+    // Bulk block settings apply to every question in the block, once the block is complete
+    const applyBulkSettings = (bd) => {
+        if (!bd || !bd.settings) return;
+        bd.questions.forEach((q, n) => bd.settings.forEach(s => {
+            applySetting(q, s.setting, s.row, n === 0);
+            settingEntries.push({ comp: q, setting: s.setting, row: s.row });
+        }));
+    };
 
     const pushComponent = (comp) => {
         if (containerStack.length > 0) {
@@ -805,8 +817,9 @@ function compileShorthand() {
 
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i].trim();
-        if (!line) { 
+        if (!line) {
             lastFieldComponent = null;
+            settingsTarget = null;
             if (containerStack.length > 0) {
                 let popped = containerStack.pop();
                 if (popped.type === 'repeat') {
@@ -819,11 +832,15 @@ function compileShorthand() {
 
         if (line.startsWith('+++')) {
             lastFieldComponent = null;
-            if (inBulkMode) { inBulkMode = false; bulkDef = null; } 
-            else { 
+            if (inBulkMode) { applyBulkSettings(bulkDef); inBulkMode = false; bulkDef = null; settingsTarget = null; }
+            else {
                 inBulkMode = true;
                 bulkDef = parseComponentDef(line.substring(3).trim());
                 bulkDef.markdownChoices = [];
+                bulkDef.settings = [];
+                bulkDef.questions = [];
+                settingsTarget = bulkDef;
+                settingTargetTypes[i] = formioTypeOf(bulkDef.type);
                 flagUnusedAsIs(bulkDef, i);
                 // Text after the bracket switches on notes: "Notes?" = conditional + required, "Notes" = always + optional
                 const term = (bulkDef.label || '').trim();
@@ -838,7 +855,26 @@ function compileShorthand() {
             continue;
         }
 
+        if (line.startsWith('~')) {
+            // ~ setting: applies to the component (or bulk block) directly above, until a blank line
+            const setting = parseSettingLine(line);
+            if (!setting) {
+                compileWarnings.push({ row: i, text: 'Setting format: ~name or ~name: value   (e.g. ~rows: 5)' });
+            } else if (!settingsTarget) {
+                compileWarnings.push({ row: i, text: 'A ~ setting must sit under the component it belongs to, with no blank line in between' });
+            } else if (settingsTarget === bulkDef) {
+                bulkDef.settings.push({ setting, row: i });
+            } else {
+                applySetting(settingsTarget, setting, i, true);
+                settingEntries.push({ comp: settingsTarget, setting, row: i });
+                lineComps[i] = settingsTarget;
+            }
+            settingTargetTypes[i] = !settingsTarget ? null : settingsTarget === bulkDef ? formioTypeOf(bulkDef.type) : settingsTarget.type;
+            continue;
+        }
+
         if (inBulkMode && bulkDef) {
+            settingTargetTypes[i] = formioTypeOf(bulkDef.type);
             if (line.startsWith('- ') || line === '-') {
                 // Flag once here, not once per question below
                 const opt = line.substring(2).trim();
@@ -870,6 +906,7 @@ function compileShorthand() {
             }
             pushComponent(comp);
             lineComps[i] = comp;
+            bulkDef.questions.push(comp);
             if (bulkDef.notesTerm) {
                 const listed = (comp.type === 'select' ? comp.data.values : comp.values).map(o => o.label);
                 if (bulkDef.notesConditional && listed.includes(bulkDef.notesTerm) && !bulkDef.flaggedDup) {
@@ -886,6 +923,7 @@ function compileShorthand() {
             const grid = containerStack[containerStack.length - 1];
             if (grid && grid.type === 'editgrid') {
                 lineComps[i] = grid;
+                settingTargetTypes[i] = grid.type;
                 addRowFormula(grid, line, i);
             } else {
                 compileWarnings.push({ row: i, text: 'A "= Column: formula" line must come right after its [editgrid: ...] line' });
@@ -900,6 +938,8 @@ function compileShorthand() {
                 flagUnusedAsIs(def, i);
                 const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
+                settingsTarget = comp;
+                settingTargetTypes[i] = comp.type;
                 if (def.type === 'editgrid' && def.choices && comp.components.length > 5) {
                     compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
                 }
@@ -917,11 +957,14 @@ function compileShorthand() {
             }
         } else if ((line.startsWith('- ') || line === '-') && lastFieldComponent) {
             lineComps[i] = lastFieldComponent;
+            settingTargetTypes[i] = lastFieldComponent.type;
             addChoice(lastFieldComponent, line.substring(2).trim(), i);
         } else {
             lastFieldComponent = null;
+            settingsTarget = null;
         }
     }
+    if (inBulkMode) applyBulkSettings(bulkDef); // block left open at the end
 
     while (containerStack.length > 0) {
         let popped = containerStack.pop();
@@ -931,6 +974,7 @@ function compileShorthand() {
         }
     }
     resolveFormulas(pendingFormulas, rootComponents);
+    settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
 
     // Components mode: array, pasted over a "components": [ ]
     // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
@@ -1231,7 +1275,7 @@ const stripPlaceholders = (syntax) => syntax.replace(/\$\{\d+:([^}]*)\}/g, '$1')
 // Typing [ opens the menu; typed letters filter it; Enter/Tab inserts with the first placeholder selected
 shorthand.completers = [{
     id: 'shorthandTags',
-    identifierRegexps: [/[\[\w]/],
+    identifierRegexps: [/[\[~\w.]/], // shared with the ~ settings menu so both see their full prefix
     triggerCharacters: ['['],
     getCompletions(ed, session, pos, prefix, callback) {
         if (!prefix.startsWith('[')) return callback(null, []);
@@ -1244,6 +1288,7 @@ shorthand.completers = [{
         })));
     }
 }];
+initSettings(); // adds the ~ settings menu (settings.js)
 
 // Enter at the end of a "- choice" line starts the next "- "; Enter on an empty "- " ends the list
 function continueList(ed) {

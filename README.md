@@ -9,6 +9,7 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
     *   **Enter** on a placeholder moves to the next one. At the end of a `- choice` line it starts the next `- ` automatically; Enter on an empty `- ` ends the list.
 
     Arrow keys move through the menu; Esc dismisses it; typing `]` or a space closes it, so typing tags by hand (`[textfield] Name`) works as always.
+*   **Every Form.io Setting, From the Keyboard:** Type `~` on the line under any component to browse all of its Form.io settings with explanations, pick one, and it's written into the JSON. A built-in way to learn what each setting does, too.
 *   **Follows Your Cursor:** Wherever your cursor is in the shorthand, the JSON pane highlights that component and scrolls to it, and the Preview outlines and scrolls to it too — no hunting through the other panes.
 *   **Special Character Check:** Curly quotes, em/en dashes, ellipses, non-breaking and invisible spaces (common when pasting from Word or PDFs) get garbled by Form.io. They're underlined in red with a ⚠ in the margin (hover it to see what they are), and the header shows a count with a **Fix** button that swaps them all for plain versions.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
@@ -57,6 +58,29 @@ By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Ad
 +++ !@[radio]
 ```
 Flagged with ⚠ in the margin (hover for details): duplicate choices in an `@` question (same value twice), empty `- ` choices (skipped), and `@` on anything other than radio/select (ignored — `fs` selects and checkboxes included).
+
+### Any Form.io Setting (The ~ Lines)
+Put `~` lines under a component to set anything Form.io supports — no builder trip needed:
+```text
+[select] Country
+~widget: html5
+~multiple
+- USA
+- Canada
+
+[textarea] Notes
+~rows: 5
+~placeholder: "Describe the issue"
+~validate.minLength: 10
+```
+*   Type `~` at the start of the line under a component and a menu lists **every setting for that component type**, grouped like Form.io's tabs (Display, Data, Validation...) with Form.io's own explanations. Settings already used are marked ✓. Typing filters (`~pla` → placeholder).
+*   For settings with fixed options, type `~widget: ` and a second menu offers them (`choicesjs`, `html5`).
+*   `~name` alone means true; values like `5`, `true`, `"text"` or `[1,2]` are read as their proper type. Nested settings use dots (`~validate.minLength: 10`).
+*   `~` lines belong to the component directly above (choices and settings can mix) until a blank line. Under a `+++` line they apply to every question in the block; under a `[panel]` they set the panel's own options.
+*   Hover the margin: ⓘ explains each setting and shows Form.io's default; ⚠ flags settings Form.io doesn't know (still applied), invalid option values, and `~label` / `~key` / `~type` / `~input` (owned by the shorthand). Overriding something the compiler set is noted, with ⚠ for ones compiler features rely on (e.g. `values`, `calculateValue`).
+*   The settings list comes from open-source Form.io 4 and loads the first time you use `~`. Custom code settings (custom JS, logic) aren't listed — set those in your builder.
+
+Nothing changes for shorthand without `~` lines.
 
 ### Multiple Choice
 Type your component and question, then list your choices directly underneath using dashes. (The old comma-separated inline syntax `[radio: Yes, No]` is also still supported for simple lists.)
