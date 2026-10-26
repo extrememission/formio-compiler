@@ -97,7 +97,7 @@ Any tag starting with `fs` creates a select whose API key (Property Name) is the
 | `[fsdivision]` | Division | `fsdivision` | `fsdivision_x7k2` |
 | `[fsanything]` | Anything | `fsanything` | `fsanything_x7k2` |
 
-The label is whatever you type after the tag; leave it blank to get the default. Each one shows the placeholder "Type to select..." in the form. Type `[fs` to see them in the autocomplete menu.
+The label is whatever you type after the tag; leave it blank to get the default. Each one shows the placeholder "Type to select..." in the form (`[fscompany]` also sets `"multiple": true` so multiple companies can be selected). Type `[fs` to see them in the autocomplete menu.
 
 ### Smart Number Ranges
 Define min and max limits for numbers. The compiler will automatically calculate the maximum digits and apply custom Bootstrap CSS classes (`col-md-2`, etc.) to visually size the input box perfectly, and inject whole-number validation boundaries with a friendly error message.

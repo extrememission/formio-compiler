@@ -556,6 +556,7 @@ value = true;`
         const lookupLabel = label || lookupLabels[type] || type.charAt(2).toUpperCase() + type.slice(3);
         // Deliberately minimal: no dataSrc / data values
         const lookup = { label: lookupLabel, key: key, type: 'select', placeholder: 'Type to select...', input: true, tableView: true };
+        if (type === 'fscompany') lookup.multiple = true;
         if (isRequired) lookup.validate = { required: true };
         return lookup;
     }
