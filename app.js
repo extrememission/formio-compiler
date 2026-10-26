@@ -579,6 +579,8 @@ value = true;`
         base.dataSrc = 'values';
         let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
         base.data = { values: optionsArray };
+    } else if (type === 'textarea') {
+        base.autoExpand = true; // grows as people type, matching the Bulk Mode notes boxes (Form.io hides the drag handle)
     } else if (type === 'checkbox') {
         base.inputType = 'checkbox';
     } else if (type === 'datetime' || type === 'date' || type === 'time') {

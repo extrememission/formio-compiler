@@ -38,7 +38,7 @@ Create inputs by wrapping the component type in brackets, followed by the label.
 [checkbox] I agree to the terms
 ```
 
-`[date]` and `[time]` compile to Form.io `datetime` components with the time or calendar picker disabled, respectively. `[phoneNumber]` applies a `(999) 999-9999` input mask.
+`[date]` and `[time]` compile to Form.io `datetime` components with the time or calendar picker disabled, respectively. `[phoneNumber]` applies a `(999) 999-9999` input mask. `[textarea]` auto-expands as people type (Form.io hides the drag handle when it does).
 
 ### Required Fields (The Exclamation Modifier)
 Add a `!` before any component to instantly mark it as required.
