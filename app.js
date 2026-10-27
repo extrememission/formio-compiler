@@ -31,6 +31,51 @@ const defaultTemplates = [
         shorthand: "[panel] Materials & Parts Used\n[editgrid: Qty#(s), !Part # / Description(xl), Unit(s), Unit Price$, Ext. Price$] Materials\n= Ext. Price: Qty * Unit Price\n\n\n[panel] Labor & Other Charges\n[editgrid: !Labor / Charge Description(l), Hours#(s), Rate$, Amount$, Notes(l)] Labor\n= Amount: Hours * Rate\n\n\n[panel] Summary / Billing\n[textarea] Technician Recommendations\n[currency: =SUM(Ext. Price)] Materials Subtotal\n[currency: =SUM(Amount)] Labor Subtotal\n[currency] Travel / Equipment\n[currency] Other Charges\n[currency] Sales Tax\n[currency: =Materials Subtotal + Labor Subtotal + \"Travel / Equipment\" + Other Charges + Sales Tax] Total"
     },
     {
+        name: "Template: How-To: Formulas & Charts",
+        date: "System Default",
+        // Instructions are [content] cards (delete their lines when done); field hints are ~description lines
+        shorthand: [
+            '[panel] How-To: Formulas & Charts',
+            '~collapsible',
+            '[content] <p><strong>How to use this example:</strong> type numbers into the fields and watch the totals and the chart update. The grey hint under each field explains what its shorthand line does. Delete the [content] lines once you have the hang of it.</p>',
+            '[fieldset] 1. Formulas use labels',
+            '[content] <p>Shorthand: <code>[currency: =Hours * Rate] Labor Total</code>. Write formulas with field labels; the compiler fills in the real keys every time it compiles.</p>',
+            '[number] Hours',
+            '~description: "Try 8"',
+            '[currency] Rate',
+            '~description: "Try 50"',
+            '[currency: =Hours * Rate] Labor Total',
+            '~description: "Calculated: Hours x Rate, rounded to cents, read-only"',
+            '',
+            '[fieldset] 2. Labels with symbols need quotes',
+            '[content] <p>Shorthand: <code>[currency: =Labor Total + "Travel / Equipment"] Subtotal</code>. A label containing + - * / ( ) must be in quotes inside a formula.</p>',
+            '[currency] Travel / Equipment',
+            '~description: "Try 75"',
+            '[currency: =Labor Total + "Travel / Equipment"] Subtotal',
+            '~description: "Calculated: Labor Total + Travel / Equipment"',
+            '',
+            '[fieldset] 3. Grid columns and SUM()',
+            '[content] <p>Shorthand: <code>[editgrid: !Item(xl), Qty#(s), Price$, Line Total$] Parts</code> then <code>= Line Total: Qty * Price</code> on the next line. <code>$</code> = currency, <code>#</code> = number, <code>!</code> = required, <code>(s)/(l)/(xl)</code> = width. <code>SUM(Line Total)</code> adds a column across every row.</p>',
+            '[editgrid: !Item(xl), Qty#(s), Price$, Line Total$] Parts',
+            '= Line Total: Qty * Price',
+            '~description: "Click Add Another: Line Total fills in from Qty x Price"',
+            '',
+            '[currency: =SUM(Line Total)] Parts Total',
+            '~description: "Calculated: SUM(Line Total) across every row of Parts"',
+            '',
+            '[fieldset] 4. Charts',
+            '[content] <p>Shorthand: <code>[chart: Labor Total, "Travel / Equipment", Parts Total] Cost Breakdown</code>. List any number of number or currency fields by label (quotes and SUM() work here too). Each bar shows its amount and share of the total, and redraws as you type.</p>',
+            '[chart: Labor Total, "Travel / Equipment", Parts Total] Cost Breakdown',
+            '',
+            '[fieldset] 5. ~ settings',
+            '[content] <p>Every grey hint on this page is a <code>~description</code> line under its field. On a new line under any field, type <code>~</code> to browse all of its Form.io settings with explanations.</p>',
+            '[textfield] Try It',
+            '~placeholder: "Type here"',
+            '~tooltip: "Added with ~tooltip"',
+            '~description: "Added with ~description"'
+        ].join('\n')
+    },
+    {
         name: "Template: ~ Settings Showcase",
         date: "System Default",
         shorthand: "[panel] ~ Settings Showcase\n~collapsible\n[content] <p>Every field here is customized with <strong>~ lines</strong>. Hover the ⓘ in the margin next to any ~ line to see what it does, or type <strong>~</strong> on a new line under any field to browse all of its settings.</p>\n[textfield] Full Name\n~placeholder: \"First and last name\"\n~tooltip: \"As it appears on your ID\"\n~validate.maxLength: 60\n~showCharCount\n![email] Email\n~description: \"We'll only use this for receipts\"\n[textfield] Employee ID\n~labelPosition: left-left\n~labelWidth: 25\n~prefix: \"#\"\n[number] Hours Worked\n~suffix: \"hrs\"\n~validate.min: 0\n~validate.max: 24\n[select] Department\n~widget: html5\n~placeholder: \"Choose a department\"\n- Field Operations\n- Service\n- Office\n[radio] Shift\n~inline\n- Day\n- Night\n- Weekend\n[textarea] Work Summary\n~rows: 4\n~showWordCount\n~validate.maxWords: 200\n[signature] Technician Signature\n~footer: \"Sign above the line\""
@@ -39,7 +84,7 @@ const defaultTemplates = [
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 6);
+    const request = indexedDB.open('FormioCompilerDB', 7);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
