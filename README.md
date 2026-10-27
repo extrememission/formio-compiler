@@ -161,6 +161,19 @@ Define an Edit Grid's columns in one line. While entering a row the fields stack
 
 Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in Favorites for a complete example.
 
+### Live Charts
+Chart number or currency fields by their labels — the chart redraws as people type:
+```text
+[chart: Labor Total, Materials Total, Tax] Cost Breakdown
+```
+*   Horizontal bars, one per field, scaled to the largest value, each showing its amount and share of the total (`$400.00 (60%)`). Currency fields show as dollars.
+*   Labels work like formulas: quote labels with symbols (`"Travel / Equipment"`) and use `SUM(Column)` to chart an Edit Grid column total.
+*   Bars use your app's Bootstrap colors in order (primary, success, info, secondary, dark, warning, danger), so they match your theme.
+*   It's a plain HTML Element with inline styles — it shows the same in the Preview, your app, a viewed entry, and your print button. (Stimulsoft PDFs build from data, so they won't include it.)
+*   ⓘ shows which fields it reads; ⚠ flags unknown labels and non-number fields. Charts inside a `[repeat]` or grid row aren't supported.
+
+See the **Time & Materials** template for a working example.
+
 ### HTML & Content
 Drop static text into your form. `[html]` takes the HTML tag after the colon (defaults to `p`); `[content]` accepts raw HTML.
 ```text

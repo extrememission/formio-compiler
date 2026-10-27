@@ -23,7 +23,7 @@ const defaultTemplates = [
     {
         name: "Template: Time & Materials",
         date: "System Default",
-        shorthand: "[panel] Time & Materials\n[textfield] Job Description\n![date] Work Date\n[fieldset] Labor\n![number] Labor Hours\n![currency] Hourly Rate\n[currency: =Labor Hours * Hourly Rate] Labor Total\n\n[fieldset] Materials\n[currency] Materials Cost\n[number: 0-100] Markup Percent\n[currency: =Materials Cost + Materials Cost * Markup Percent / 100] Materials Total\n\n[fieldset] Totals\n[currency: =Labor Total + Materials Total] Subtotal\n[number: 0-20] Tax Rate Percent\n[currency: =Subtotal * Tax Rate Percent / 100] Tax\n[currency: =Subtotal + Tax] Grand Total"
+        shorthand: "[panel] Time & Materials\n[textfield] Job Description\n![date] Work Date\n[fieldset] Labor\n![number] Labor Hours\n![currency] Hourly Rate\n[currency: =Labor Hours * Hourly Rate] Labor Total\n\n[fieldset] Materials\n[currency] Materials Cost\n[number: 0-100] Markup Percent\n[currency: =Materials Cost + Materials Cost * Markup Percent / 100] Materials Total\n\n[fieldset] Totals\n[currency: =Labor Total + Materials Total] Subtotal\n[number: 0-20] Tax Rate Percent\n[currency: =Subtotal * Tax Rate Percent / 100] Tax\n[currency: =Subtotal + Tax] Grand Total\n\n[chart: Labor Total, Materials Total, Tax] Cost Breakdown"
     },
     {
         name: "Template: Service Record (T&M)",
@@ -39,7 +39,7 @@ const defaultTemplates = [
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 5);
+    const request = indexedDB.open('FormioCompilerDB', 6);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -472,6 +472,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
     }
 
     if (type === 'html') return { type: 'htmlelement', tag: choicesStr || 'p', content: label, key: generateSmartKey('html') };
+    if (type === 'chart') return buildChart(label, choicesStr);
     if (type === 'content') return { type: 'content', html: label, key: generateSmartKey('content') };
     
     if (type === 'table') {
@@ -750,19 +751,19 @@ function applyCalculation(comp, expr, problems, row, description) {
     else compileHints.push({ row, text: `Calculated: ${description} (${money ? 'rounded to cents, ' : ''}read-only, updates live)` });
 }
 
-// Top-level "[currency: =...]" formulas, resolved once the whole form exists (labels can point anywhere)
-function resolveFormulas(pending, rootComponents) {
-    const keysByLabel = new Map();
-    const outputKeys = new Set();
-    const grids = [];
+// Labels → keys for the whole built form, shared by formulas and charts.
+// Grid columns are only reachable through SUM(), not as plain labels.
+function buildLabelIndex(rootComponents) {
+    const keysByLabel = new Map(), outputKeys = new Set(), compByKey = new Map(), grids = [];
     const walk = (list) => list.forEach(c => {
         outputKeys.add(c.key);
+        compByKey.set(c.key, c);
         if (c.input && c.label) {
             const label = c.label.trim().toLowerCase();
             keysByLabel.set(label, [...(keysByLabel.get(label) || []), c.key]);
         }
         if (c.type === 'editgrid' || c.type === 'datagrid') {
-            // Grid columns are only reachable through SUM(), not as plain labels
+            (c.components || []).forEach(k => compByKey.set(k.key, k));
             grids.push({ label: (c.label || '').trim().toLowerCase(), key: c.key,
                 cols: new Map((c.components || []).map(k => [(k.label || '').trim().toLowerCase(), k.key])) });
         } else if (c.components) {
@@ -770,6 +771,12 @@ function resolveFormulas(pending, rootComponents) {
         }
     });
     walk(rootComponents);
+    return { keysByLabel, outputKeys, compByKey, grids };
+}
+
+// Top-level "[currency: =...]" formulas, resolved once the whole form exists (labels can point anywhere)
+function resolveFormulas(pending, rootComponents) {
+    const { keysByLabel, outputKeys, grids } = buildLabelIndex(rootComponents);
 
     pending.forEach(({ comp, formula, row }) => {
         if (!outputKeys.has(comp.key)) {
@@ -778,6 +785,66 @@ function resolveFormulas(pending, rootComponents) {
         }
         const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
         applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
+    });
+}
+
+// --- Charts: [chart: Labor Total, Materials Total, SUM(Ext. Price)] Cost Breakdown ---
+// A live HTML Element (refreshOnChange) drawing horizontal bars with inline styles and Bootstrap bg-* colors,
+// so it looks the same in the Preview, the app, a viewed entry and a printout.
+const CHART_COLORS = ['primary', 'success', 'info', 'secondary', 'dark', 'warning', 'danger'];
+const chartOf = new WeakMap(); // chart component → its item list text, resolved once the whole form exists
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function buildChart(title, itemsStr) {
+    const chart = { type: 'htmlelement', tag: 'div', label: title || 'Chart', key: generateSmartKey(title || 'chart'),
+        input: false, tableView: false, refreshOnChange: true, content: '' };
+    chartOf.set(chart, itemsStr || '');
+    return chart;
+}
+
+function resolveCharts(pending, rootComponents) {
+    const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
+    pending.forEach(({ comp, itemsStr, row }) => {
+        if (!outputKeys.has(comp.key)) {
+            compileWarnings.push({ row, text: "Charts inside a [repeat] or grid row aren't supported: ignored" });
+            return;
+        }
+        const problems = [];
+        // Split on commas outside quotes; each item is a label, a "quoted label" or SUM(Column)
+        const items = (itemsStr.match(/("[^"]*"|[^,])+/g) || []).map(s => s.trim()).filter(Boolean).map((text, i) => {
+            const { expr, problems: p } = translateFormula(text, comp, keysByLabel, grids, 'data');
+            problems.push(...p);
+            const sum = text.match(/^SUM\(\s*"?([^")]*)"?\s*\)$/i);
+            let label = sum ? sum[1].trim() : text.replace(/^"|"$/g, '');
+            // Currency formatting follows the source field (for SUM, the grid column)
+            const keyMatch = expr.match(sum ? /\br\.(\w+)\)/ : /\bdata\.(\w+)\)/); // SUM → the column, not the grid
+            const source = keyMatch && compByKey.get(keyMatch[1]);
+            if (source && !['number', 'currency'].includes(source.type)) problems.push(`"${label}" is a ${source.type}, not a number or currency field`);
+            if (source && source.label) label = sum ? `${source.label} (total)` : source.label;
+            return { label, expr, money: !!source && source.type === 'currency', color: CHART_COLORS[i % CHART_COLORS.length] };
+        });
+        if (items.length === 0) problems.push('list the fields to chart: [chart: Field One, Field Two] Title');
+
+        const itemsJs = items.map(it => `{ l: ${JSON.stringify(it.label)}, v: ${it.expr}, m: ${it.money}, c: "${it.color}" }`).join(',\n');
+        comp.content =
+`{% var items = [
+${itemsJs}
+];
+var total = 0, max = 0;
+items.forEach(function (i) { i.v = Number(i.v) || 0; if (i.v > 0) { total += i.v; if (i.v > max) max = i.v; } }); %}
+<div style="font-weight:600;margin-bottom:8px;">${escapeHtml(comp.label)}</div>
+{% items.forEach(function (i) {
+    var w = max > 0 && i.v > 0 ? i.v / max * 100 : 0;
+    var pct = total > 0 && i.v > 0 ? Math.round(i.v / total * 100) : 0;
+    var amt = i.m ? i.v.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : i.v.toLocaleString('en-US'); %}
+<div style="display:flex;align-items:center;margin:4px 0;">
+  <div style="width:30%;padding-right:8px;">{{ i.l }}</div>
+  <div style="flex:1;background:#e9ecef;border-radius:4px;height:18px;overflow:hidden;"><div class="bg-{{ i.c }}" style="width:{{ w }}%;height:100%;"></div></div>
+  <div style="width:30%;padding-left:8px;text-align:right;white-space:nowrap;">{{ amt }} ({{ pct }}%)</div>
+</div>
+{% }); %}`;
+        if (problems.length) compileWarnings.push({ row, text: 'Chart problem: ' + problems.join('; ') });
+        else compileHints.push({ row, text: `Chart: ${items.map(it => it.label).join(', ')} (bars + % of total, updates live)` });
     });
 }
 
@@ -794,6 +861,7 @@ function compileShorthand() {
     compileWarnings = [];
     compileHints = [];
     const pendingFormulas = [];
+    const pendingCharts = [];
     let rootComponents = [];
     let containerStack = [];
     let inBulkMode = false;
@@ -949,6 +1017,7 @@ function compileShorthand() {
                     compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
                 }
                 if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
+                if (chartOf.has(comp)) pendingCharts.push({ comp, itemsStr: chartOf.get(comp), row: i });
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
                     if (def.type !== 'repeat') {
                         pushComponent(comp);
@@ -979,6 +1048,7 @@ function compileShorthand() {
         }
     }
     resolveFormulas(pendingFormulas, rootComponents);
+    resolveCharts(pendingCharts, rootComponents);
     settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
 
     // Components mode: array, pasted over a "components": [ ]
@@ -1253,6 +1323,7 @@ const quickSnippets = [
     { name: 'numberrange', desc: 'Number (Min/Max)', syntax: '[number: ${2:1-5}] ${1:Number}' },
     { name: 'currency', desc: 'US Dollars ($)', syntax: '[currency] ${1:Amount}' },
     { name: 'total', desc: 'Calculated $ Total', syntax: '[currency: =${2:Hours * Rate}] ${1:Total}' },
+    { name: 'chart', desc: 'Live bar chart of fields', syntax: '[chart: ${2:Field One, Field Two}] ${1:Chart Title}' },
     { name: 'phoneNumber', desc: 'Phone Number', syntax: '[phoneNumber] ${1:Phone Number}' },
     { name: 'datetime', desc: 'Date & Time', syntax: '[datetime] ${1:Date Time}' },
     { name: 'date', desc: 'Date Only', syntax: '[date] ${1:Date}' },
