@@ -741,6 +741,21 @@ function buildNotes(question, term, conditional) {
     return notes;
 }
 
+// "Column" or "Grid.Column" → the grids that have it. Tries each period as the split,
+// because column names like "Ext. Price" contain periods too.
+function findGridColumn(target, grids) {
+    const find = (gridLabel, colLabel) => (grids || []).filter(g => (!gridLabel || g.label === gridLabel) && g.cols.has(colLabel));
+    let col = target.toLowerCase(), matches = find(null, col);
+    for (let i = target.indexOf('.'); matches.length === 0 && i !== -1; i = target.indexOf('.', i + 1)) {
+        col = target.slice(i + 1).trim().toLowerCase();
+        matches = find(target.slice(0, i).trim().toLowerCase(), col);
+    }
+    return { matches, col };
+}
+
+// The choice list of a radio / select / selectboxes component ([] for anything else)
+const choicesOf = (c) => (c && (c.type === 'select' ? (c.data && c.data.values) : c.values)) || [];
+
 // Turn a label-based formula into JavaScript for Form.io's calculateValue.
 // Tokens: SUM(Column) / SUM(Grid.Column) / SUM("Quoted"), "Quoted Label", numbers, + - * / ( ), and plain labels.
 // scope maps lowercase label → keys; grids lists editgrids for SUM; mode 'data' (form fields) or 'row' (inside a grid row).
@@ -757,13 +772,7 @@ function translateFormula(formula, comp, scope, grids, mode) {
     };
     const resolveSum = (target) => {
         if (mode === 'row') { problems.push('SUM() totals a whole grid; use it in a field below the grid'); return '0'; }
-        const find = (gridLabel, colLabel) => (grids || []).filter(g => (!gridLabel || g.label === gridLabel) && g.cols.has(colLabel));
-        let col = target.toLowerCase(), matches = find(null, col);
-        // "Grid.Column": try each period as the split (column names like "Ext. Price" contain periods too)
-        for (let i = target.indexOf('.'); matches.length === 0 && i !== -1; i = target.indexOf('.', i + 1)) {
-            col = target.slice(i + 1).trim().toLowerCase();
-            matches = find(target.slice(0, i).trim().toLowerCase(), col);
-        }
+        const { matches, col } = findGridColumn(target, grids);
         if (matches.length === 0) { problems.push(`SUM: no grid column "${target}"`); return '0'; }
         if (matches.length > 1) { problems.push(`SUM: "${target}" is a column in ${matches.length} grids; write SUM(Grid Name.${target})`); return '0'; }
         return `(data.${matches[0].key} || []).reduce((s, r) => s + (Number(r.${matches[0].cols.get(col)}) || 0), 0)`;
@@ -809,7 +818,7 @@ function buildLabelIndex(rootComponents) {
         }
         if (c.type === 'editgrid' || c.type === 'datagrid') {
             (c.components || []).forEach(k => compByKey.set(k.key, k));
-            grids.push({ label: (c.label || '').trim().toLowerCase(), key: c.key,
+            grids.push({ label: (c.label || '').trim().toLowerCase(), key: c.key, comp: c,
                 cols: new Map((c.components || []).map(k => [(k.label || '').trim().toLowerCase(), k.key])) });
         } else if (c.components) {
             walk(c.components);
@@ -847,6 +856,51 @@ function buildChart(title, itemsStr) {
     return chart;
 }
 
+// Shared bar drawing. setupJs must define `var items = [{ l: label, v: value, m: isMoney, c: bootstrapColor }]`.
+function chartHtml(title, setupJs) {
+    return `{% ${setupJs}
+var total = 0, max = 0;
+items.forEach(function (i) { i.v = Number(i.v) || 0; if (i.v > 0) { total += i.v; if (i.v > max) max = i.v; } }); %}
+<div style="font-weight:600;margin-bottom:8px;">${escapeHtml(title)}</div>
+{% if (!items.length) { %}<div style="color:#6c757d;">Nothing to chart yet.</div>{% } %}
+{% items.forEach(function (i) {
+    var w = max > 0 && i.v > 0 ? i.v / max * 100 : 0;
+    var pct = total > 0 && i.v > 0 ? Math.round(i.v / total * 100) : 0;
+    var amt = i.m ? i.v.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : i.v.toLocaleString('en-US'); %}
+<div style="display:flex;align-items:center;margin:4px 0;">
+  <div style="width:30%;padding-right:8px;">{{ i.l }}</div>
+  <div style="flex:1;background:#e9ecef;border-radius:4px;height:18px;overflow:hidden;"><div class="bg-{{ i.c }}" style="width:{{ w }}%;height:100%;"></div></div>
+  <div style="width:30%;padding-left:8px;text-align:right;white-space:nowrap;">{{ amt }} ({{ pct }}%)</div>
+</div>
+{% }); %}`;
+}
+
+// "[chart: COUNT BY(Near Miss Type)] Title": one bar per choice that was picked in a grid column,
+// most frequent first, zero counts hidden. Multi-selects count each picked value.
+function resolveCountByChart(comp, target, grids, compByKey, row) {
+    const { matches, col } = findGridColumn(target, grids);
+    if (matches.length !== 1) {
+        compileWarnings.push({ row, text: matches.length ? `Chart problem: "${target}" is a column in ${matches.length} grids; write COUNT BY(Grid Name.${target})`
+            : `Chart problem: COUNT BY: no grid column "${target}"` });
+        comp.content = chartHtml(comp.label, 'var items = [];');
+        return;
+    }
+    const grid = matches[0], column = compByKey.get(grid.cols.get(col));
+    const choices = choicesOf(column).map(o => ({ l: o.label, v: o.value }));
+    if (!choices.length) {
+        compileWarnings.push({ row, text: `Chart problem: COUNT BY needs a radio or select column with choices; "${column.label}" is a ${column.type}` });
+        comp.content = chartHtml(comp.label, 'var items = [];');
+        return;
+    }
+    comp.content = chartHtml(comp.label,
+`var rows = data.${grid.key} || [], colors = ${JSON.stringify(CHART_COLORS)};
+var items = ${JSON.stringify(choices)}.map(function (c) {
+    return { l: c.l, v: rows.filter(function (r) { var x = r.${column.key}; return Array.isArray(x) ? x.indexOf(c.v) !== -1 : x === c.v; }).length };
+}).filter(function (i) { return i.v > 0; }).sort(function (a, b) { return b.v - a.v; });
+items.forEach(function (i, n) { i.m = false; i.c = colors[n % colors.length]; });`);
+    compileHints.push({ row, text: `Chart: how many rows picked each ${column.label} (most frequent first, zero counts hidden, updates live)` });
+}
+
 function resolveCharts(pending, rootComponents) {
     const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
     pending.forEach(({ comp, itemsStr, row }) => {
@@ -854,6 +908,8 @@ function resolveCharts(pending, rootComponents) {
             compileWarnings.push({ row, text: "Charts inside a [repeat] or grid row aren't supported: ignored" });
             return;
         }
+        const countBy = itemsStr.trim().match(/^COUNT\s+BY\(\s*"?([^")]*)"?\s*\)$/i);
+        if (countBy) return resolveCountByChart(comp, countBy[1].trim(), grids, compByKey, row);
         const problems = [];
         // Split on commas outside quotes; each item is a label, a "quoted label" or SUM(Column)
         const items = (itemsStr.match(/("[^"]*"|[^,])+/g) || []).map(s => s.trim()).filter(Boolean).map((text, i) => {
@@ -871,25 +927,39 @@ function resolveCharts(pending, rootComponents) {
         if (items.length === 0) problems.push('list the fields to chart: [chart: Field One, Field Two] Title');
 
         const itemsJs = items.map(it => `{ l: ${JSON.stringify(it.label)}, v: ${it.expr}, m: ${it.money}, c: "${it.color}" }`).join(',\n');
-        comp.content =
-`{% var items = [
-${itemsJs}
-];
-var total = 0, max = 0;
-items.forEach(function (i) { i.v = Number(i.v) || 0; if (i.v > 0) { total += i.v; if (i.v > max) max = i.v; } }); %}
-<div style="font-weight:600;margin-bottom:8px;">${escapeHtml(comp.label)}</div>
-{% items.forEach(function (i) {
-    var w = max > 0 && i.v > 0 ? i.v / max * 100 : 0;
-    var pct = total > 0 && i.v > 0 ? Math.round(i.v / total * 100) : 0;
-    var amt = i.m ? i.v.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : i.v.toLocaleString('en-US'); %}
-<div style="display:flex;align-items:center;margin:4px 0;">
-  <div style="width:30%;padding-right:8px;">{{ i.l }}</div>
-  <div style="flex:1;background:#e9ecef;border-radius:4px;height:18px;overflow:hidden;"><div class="bg-{{ i.c }}" style="width:{{ w }}%;height:100%;"></div></div>
-  <div style="width:30%;padding-left:8px;text-align:right;white-space:nowrap;">{{ amt }} ({{ pct }}%)</div>
-</div>
-{% }); %}`;
+        comp.content = chartHtml(comp.label, `var items = [\n${itemsJs}\n];`);
         if (problems.length) compileWarnings.push({ row, text: 'Chart problem: ' + problems.join('; ') });
         else compileHints.push({ row, text: `Chart: ${items.map(it => it.label).join(', ')} (bars + % of total, updates live)` });
+    });
+}
+
+// "~showWhen: Near Miss Type = Other": show this field only when another field (by label) has that value.
+// Inside a grid row it checks the same row first. Choices match by label or value, so it works with or without @.
+// A required field that's hidden isn't validated, so "!" + showWhen = required only when shown.
+function resolveShowWhen(pending, rootComponents) {
+    const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
+    pending.forEach(({ comp, text, row }) => {
+        const warn = (t) => compileWarnings.push({ row, text: 'Show when: ' + t });
+        const m = text.match(/^\s*"?([^"=]+?)"?\s*=\s*"?(.*?)"?\s*$/);
+        if (!m || !m[2]) return warn('write it as ~showWhen: Field Label = Value');
+        const label = m[1].trim(), wanted = m[2].trim();
+        const grid = grids.find(g => (g.comp.components || []).includes(comp));
+        if (!grid && !outputKeys.has(comp.key)) return warn("not supported inside a [repeat]: ignored");
+        let keys = grid && grid.cols.has(label.toLowerCase()) ? [grid.cols.get(label.toLowerCase())] : [];
+        if (!keys.length) keys = keysByLabel.get(label.toLowerCase()) || [];
+        if (keys.length === 0) return warn(`no field labeled "${label}"`);
+        if (keys.length > 1) return warn(`"${label}" matches ${keys.length} fields; labels used in showWhen must be unique`);
+        if (keys[0] === comp.key) return warn(`"${label}" is this field itself`);
+        const source = compByKey.get(keys[0]);
+        const choices = choicesOf(source);
+        let eq = wanted;
+        if (choices.length) {
+            const choice = choices.find(o => String(o.label).toLowerCase() === wanted.toLowerCase() || String(o.value) === wanted);
+            if (!choice) return warn(`"${wanted}" isn't one of ${source.label}'s choices`);
+            eq = choice.value;
+        }
+        comp.conditional = { show: true, when: keys[0], eq };
+        compileHints.push({ row, text: `Shows only when ${source.label} = ${wanted}${grid ? ' (in the same row)' : ''}` });
     });
 }
 
@@ -907,6 +977,7 @@ function compileShorthand() {
     compileHints = [];
     const pendingFormulas = [];
     const pendingCharts = [];
+    const pendingShowWhen = [];
     let rootComponents = [];
     let containerStack = [];
     let inBulkMode = false;
@@ -980,6 +1051,10 @@ function compileShorthand() {
                 compileWarnings.push({ row: i, text: 'Setting format: ~name or ~name: value   (e.g. ~rows: 5)' });
             } else if (!settingsTarget) {
                 compileWarnings.push({ row: i, text: 'A ~ setting must sit under the component it belongs to, with no blank line in between' });
+            } else if (setting.path === 'showWhen') {
+                // Compiler setting: resolved by label once the whole form exists
+                if (settingsTarget === bulkDef) compileWarnings.push({ row: i, text: "~showWhen isn't supported under a +++ bulk block" });
+                else { pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i }); lineComps[i] = settingsTarget; }
             } else if (settingsTarget === bulkDef) {
                 bulkDef.settings.push({ setting, row: i });
             } else {
@@ -1094,6 +1169,7 @@ function compileShorthand() {
     }
     resolveFormulas(pendingFormulas, rootComponents);
     resolveCharts(pendingCharts, rootComponents);
+    resolveShowWhen(pendingShowWhen, rootComponents);
     settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
 
     // Components mode: array, pasted over a "components": [ ]

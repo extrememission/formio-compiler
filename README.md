@@ -78,6 +78,7 @@ Put `~` lines under a component to set anything Form.io supports — no builder 
 *   `~name` alone means true; values like `5`, `true`, `"text"` or `[1,2]` are read as their proper type. Nested settings use dots (`~validate.minLength: 10`).
 *   `~` lines belong to the component directly above (choices and settings can mix) until a blank line. Under a `+++` line they apply to every question in the block; under a `[panel]` they set the panel's own options.
 *   Hover the margin: ⓘ explains each setting and shows Form.io's default; ⚠ flags settings Form.io doesn't know (still applied), invalid option values, and `~label` / `~key` / `~type` / `~input` (owned by the shorthand). Overriding something the compiler set is noted, with ⚠ for ones compiler features rely on (e.g. `values`, `calculateValue`).
+*   **`~showWhen: Field Label = Value`** (a compiler setting, first in every `~` menu) shows a field only when another field has that value — by label, so it never breaks when keys regenerate. Inside a grid row it checks the same row. Combine with `!` to make a field required only when it's shown. ⚠ flags unknown labels and values that aren't one of that field's choices.
 *   The settings list comes from open-source Form.io 4 and loads the first time you use `~`. Custom code settings (custom JS, logic) aren't listed — set those in your builder.
 
 Nothing changes for shorthand without `~` lines.
@@ -168,6 +169,7 @@ Chart number or currency fields by their labels — the chart redraws as people 
 ```
 *   Horizontal bars, one per field, scaled to the largest value, each showing its amount and share of the total (`$400.00 (60%)`). Currency fields show as dollars.
 *   Labels work like formulas: quote labels with symbols (`"Travel / Equipment"`) and use `SUM(Column)` to chart an Edit Grid column total.
+*   **Count charts:** `[chart: COUNT BY(Near Miss Type)] Near Misses by Type` draws one bar per choice picked in a grid's radio/select column, showing how many rows picked it and its share (`Electrical hazards 3 (75%)`). Most frequent first; choices nobody picked are hidden. Multi-selects count each picked value. Use `COUNT BY(Grid Name.Column)` if two grids share a column name.
 *   Bars use your app's Bootstrap colors in order (primary, success, info, secondary, dark, warning, danger), so they match your theme.
 *   It's a plain HTML Element with inline styles — it shows the same in the Preview, your app, a viewed entry, and your print button. (Stimulsoft PDFs build from data, so they won't include it.)
 *   ⓘ shows which fields it reads; ⚠ flags unknown labels and non-number fields. Charts inside a `[repeat]` or grid row aren't supported.

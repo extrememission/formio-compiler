@@ -10,6 +10,13 @@ const PROTECTED_SETTINGS = ['label', 'key', 'type', 'input']; // owned by the sh
 const COMPILER_MANAGED = ['dataSrc', 'data', 'values', 'calculateValue', 'templates', 'components', 'conditional']; // compiler features depend on these
 const SETTINGS_FORMIO_CDN = 'https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.js';
 
+// Settings the compiler handles itself (not Form.io settings); listed first in every ~ menu
+const COMPILER_SETTINGS = [{
+    path: 'showWhen', label: 'Show When', group: 'Compiler', kind: 'text',
+    help: 'Show this field only when another field, by label, has a value. Inside a grid row it checks the same row. With ! it is required only when shown.',
+    snippet: '~showWhen: ${1:Field Label} = ${2:Value}'
+}];
+
 let settingTargetTypes = [];   // shorthand row → Form.io type a "~" on that row (or the next) would apply to; filled by compileShorthand
 const settingsCatalog = {};    // Form.io type → [{ path, label, help, group, kind, options, def }] or null (not a Form.io type)
 const catalogWaiters = {};     // Form.io type → callbacks waiting for it to load
@@ -177,11 +184,11 @@ const settingsCompleter = {
         requestCatalog(type, (cat) => {
             if (!cat) return callback(null, []);
             const used = usedSettingsAt(pos.row);
-            callback(null, cat.filter(e => !PROTECTED_SETTINGS.includes(e.path)).map((e, i) => ({
+            callback(null, [...COMPILER_SETTINGS, ...cat.filter(e => !PROTECTED_SETTINGS.includes(e.path))].map((e, i) => ({
                 caption: '~' + e.path,
-                snippet: settingSnippet(e),
+                snippet: e.snippet || settingSnippet(e),
                 meta: (used.has(e.path) ? '✓ ' : '') + e.group,
-                docText: `${e.label}${e.help ? '\n' + e.help : ''}\nForm.io default: ${shortText(e.def)}`,
+                docText: `${e.label}${e.help ? '\n' + e.help : ''}${e.group === 'Compiler' ? '' : '\nForm.io default: ' + shortText(e.def)}`,
                 score: 1000 - i
             })));
         });
