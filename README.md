@@ -195,7 +195,7 @@ When clicked it prints **only the form** — not the app around it — so it wor
 *   Strips buttons, edit/delete icons, error text, and itself.
 *   Adds a header with the form title and print date/time, and page numbers where the browser supports them.
 *   Names the PDF `Form Title - YYYY-MM-DD` when "Save as PDF" is chosen.
-*   Installs itself whenever the form is drawn, so it works on new and saved entries, in Edit and View (like charts, it needs the platform to allow Form.io template code).
+*   The print code lives in a hidden field (its custom conditional, re-checked whenever the form is drawn), so it works on new and saved entries, in Edit and View, saves nothing to the entry, and keeps the builder tidy — the button itself is a short HTML element. Both sit in an invisible field set, so `[print]` is one draggable item. (Like formulas, it needs the platform to allow Form.io custom JavaScript.)
 
 ### Bulk Mode
 Need to ask the same type of question 50 times? Wrap your questions in `+++` tags to inherit the parent component type. For multiple choice fields, define your choices at the top, and they will apply to every question below!

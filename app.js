@@ -779,8 +779,8 @@ function resolveFormulas(pending, rootComponents) {
 // carries the app's stylesheets, adds a title/date header, and prints that. Nothing around the form can get in,
 // whatever the app's layout. The PDF is named "Form Title - YYYY-MM-DD". Installed by the button's own HTML
 // template, so it works on new and saved entries, in Edit and View.
-// Its source is embedded URI-encoded: Form.io sanitizes HTML Element content before running the template,
-// and raw code containing things like "<title>" would be mangled by the sanitizer.
+// Its source lives in a hidden field's customConditional (re-checked whenever the form draws, in Edit and View),
+// not in the button's HTML: the builder previews HTML content and a huge string stretches its layout.
 function cleanPdfRun(btn) {
     var root = btn.closest('.formio-form') || btn.closest('form') || document.body;
     var clone = root.cloneNode(true);
@@ -864,16 +864,28 @@ function cleanPdfRun(btn) {
 function buildCleanPdfButton(text) {
     const icon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:6px;" aria-hidden="true">' +
         '<path d="M4 0h5.5L14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5 1.5V5h3.5L9 1.5zM5 8h6v1H5V8zm0 2h6v1H5v-1zm0 2h4v1H5v-1z"/></svg>';
-    const install = '{% if (!window.__formioCleanPdf) { window.__formioCleanPdf = new Function("return " + decodeURIComponent("' +
-        encodeURIComponent(cleanPdfRun.toString()) + '"))(); document.addEventListener("click", function (e) { ' +
-        // No & < > here: the sanitizer would turn them into &amp; etc. and break the code
-        'var b = e.target.closest ? e.target.closest(".js-clean-pdf") : null; if (b) { e.preventDefault(); window.__formioCleanPdf(b); } ' + '}); } %}';
+    // Installer: runs on every conditional check (cheap after the first), keeps the hidden field "shown"
+    const install = 'if (!window.__formioCleanPdf) {\n' +
+        '  window.__formioCleanPdf = ' + cleanPdfRun.toString() + ';\n' +
+        '  document.addEventListener("click", function (e) {\n' +
+        '    var b = e.target.closest ? e.target.closest(".js-clean-pdf") : null;\n' +
+        '    if (b) { e.preventDefault(); window.__formioCleanPdf(b); }\n' +
+        '  });\n' +
+        '}\nshow = true;';
+    // An invisible Field Set (no legend) keeps [print] one draggable item; no-print keeps it out of the PDF
     return {
-        label: text, key: generateSmartKey('cleanPdf'), type: 'htmlelement', tag: 'div',
+        label: text, legend: '', key: generateSmartKey('cleanPdf'), type: 'fieldset',
         input: false, tableView: false, customClass: 'no-print',
-        content: install + '<div style="text-align:right;"><button type="button" class="btn btn-outline-primary btn-sm js-clean-pdf" ' +
-            'title="Creates a clean, print-ready PDF of this form (charts and signatures included). Choose Save as PDF in the print window.">' +
-            icon + escapeHtml(text) + '</button></div>'
+        components: [
+            { label: 'Clean PDF Installer', key: generateSmartKey('cleanPdfInstaller'), type: 'hidden',
+                input: true, tableView: false, persistent: false, clearOnHide: false, customConditional: install },
+            { label: text, key: generateSmartKey('cleanPdfButton'), type: 'htmlelement', tag: 'div', input: false, tableView: false,
+                // Only in read-only view (the card); hidden while filling out a new entry or editing
+                customConditional: 'show = !!(instance && instance.options && instance.options.readOnly);',
+                content: '<div style="text-align:right;"><button type="button" class="btn btn-outline-primary btn-sm js-clean-pdf" ' +
+                    'title="Creates a clean, print-ready PDF of this form (charts and signatures included). Choose Save as PDF in the print window.">' +
+                    icon + escapeHtml(text) + '</button></div>' }
+        ]
     };
 }
 
