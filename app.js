@@ -963,6 +963,20 @@ function resolveShowWhen(pending, rootComponents) {
     });
 }
 
+// Safety pass: every component gets a label, like the Form.io builder gives them.
+// Some platform viewers lowercase every component's label and crash on one without (blank entry card).
+// Only fills labels that are missing entirely; Content/HTML never display their label.
+const DEFAULT_LABELS = { content: 'Content', htmlelement: 'HTML' };
+function ensureLabels(list) {
+    (list || []).forEach(c => {
+        if (!c) return;
+        if (c.label === undefined) c.label = DEFAULT_LABELS[c.type] || (c.type ? c.type.charAt(0).toUpperCase() + c.type.slice(1) : 'Component');
+        ensureLabels(c.components);
+        (c.columns || []).forEach(col => ensureLabels(col.components));
+        (Array.isArray(c.rows) ? c.rows : []).forEach(r => (r || []).forEach(cell => ensureLabels(cell && cell.components)));
+    });
+}
+
 function flagUnusedAsIs(def, row) {
     if (def && def.asIs && !['radio', 'select'].includes(def.type)) {
         compileWarnings.push({ row, text: '@ only applies to radio and select choices: ignored here' });
@@ -1171,6 +1185,7 @@ function compileShorthand() {
     resolveCharts(pendingCharts, rootComponents);
     resolveShowWhen(pendingShowWhen, rootComponents);
     settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
+    ensureLabels(rootComponents);
 
     // Components mode: array, pasted over a "components": [ ]
     // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)

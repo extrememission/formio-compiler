@@ -260,6 +260,8 @@ Use the **Wrapper** checkbox at the top of the JSON pane to choose how the outpu
 
 Your choice is remembered in this browser. UUIDs aren't needed in the pasted JSON — the app adds them on save.
 
+Every component in the output has a `label`, just like builder-made ones: `[content]` gets `"Content"` and `[html]` (plus repeat headings and dividers) gets `"HTML"`, Form.io's own defaults. These never display on the form, but some platform viewers expect every component to have a label and show a blank entry card without one.
+
 ### Tables
 `[table: 3x2] Layout Table` generates an empty 3 row, 2 column table. Tables are **not** containers — fields typed below a table are not placed into its cells.
 
