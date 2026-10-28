@@ -811,9 +811,7 @@ function summaryText(sections, data) {
         counts.forEach(function (c) {
             var label = c.l + ' ';
             while (label.length < width) label += '.';
-            // Bar on its own line, so the layout is the same at any width (screen, card view, PDF)
             lines.push(label + ' ' + c.n + ' (' + Math.round(c.n / total * 100) + '%)');
-            lines.push('  ' + '|'.repeat(Math.max(1, Math.round(c.n / counts[0].n * 30))));
         });
         lines.push('');
     });

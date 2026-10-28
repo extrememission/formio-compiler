@@ -163,18 +163,16 @@ Define an Edit Grid's columns in one line. While entering a row the fields stack
 Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in Favorites for a complete example.
 
 ### Text Summaries (SUMMARY)
-A read-only text box that counts choice fields and draws text bars — saved **as text in the entry**, so it shows in card views, exports, and Stimulsoft PDFs (unlike HTML charts):
+A read-only text box that counts choice fields — saved **as text in the entry**, so it shows in card views, exports, and Stimulsoft PDFs (unlike HTML charts):
 ```text
 [textarea: =SUMMARY(Near Miss Type, PPE Not Worn)] Quarterly Summary
 ```
 ```text
 NEAR MISS TYPE (4 total)
 Electrical hazards ........ 3 (75%)
-  ||||||||||||||||||||||||||||||
 Inadequate housekeeping ... 1 (25%)
-  ||||||||||
 ```
-*   One section per field: choices most frequent first (zeros hidden), with count, % and a `|` bar scaled to the largest (30 bars), each bar on its own line so it reads the same at any width.
+*   One section per field: choices most frequent first (zeros hidden), each with its count and %.
 *   Counts **every field with that label** — so all copies of a `[repeat]` are included. Ideal with `[repeat: 10] Near Miss` for flat, platform-friendly incident logs.
 *   Shown in monospace so it lines up; updates live; ⚠ flags unknown labels and fields without a choice list.
 
