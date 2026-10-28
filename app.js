@@ -789,15 +789,67 @@ function buildLabelIndex(rootComponents) {
     return { keysByLabel, outputKeys, compByKey, grids };
 }
 
-// Top-level "[currency: =...]" formulas, resolved once the whole form exists (labels can point anywhere)
+// "[textarea: =SUMMARY(Near Miss Type, PPE Not Worn)] Quarterly Summary": a read-only text report saved in the entry.
+// For each field: its choices with count, % and a | bar (longest = 30), most frequent first, zeros hidden.
+// Counts every field with that label, so all copies of a [repeat] are included.
+// summaryText runs inside the form (its source is embedded in calculateValue).
+function summaryText(sections, data) {
+    var lines = [];
+    sections.forEach(function (s) {
+        var counts = s.choices.map(function (c) {
+            var n = 0;
+            s.keys.forEach(function (k) {
+                var x = data[k];
+                if (Array.isArray(x) ? x.indexOf(c.v) !== -1 : (x && typeof x === 'object' ? x[c.v] === true : x === c.v)) n++;
+            });
+            return { l: c.l, n: n };
+        }).filter(function (c) { return c.n > 0; }).sort(function (a, b) { return b.n - a.n; });
+        var total = counts.reduce(function (t, c) { return t + c.n; }, 0);
+        var width = counts.reduce(function (w, c) { return Math.max(w, c.l.length); }, 0) + 4;
+        lines.push(s.t + ' (' + total + ' total)');
+        if (!counts.length) lines.push('  Nothing recorded yet');
+        counts.forEach(function (c) {
+            var label = c.l + ' ';
+            while (label.length < width) label += '.';
+            // Bar on its own line, so the layout is the same at any width (screen, card view, PDF)
+            lines.push(label + ' ' + c.n + ' (' + Math.round(c.n / total * 100) + '%)');
+            lines.push('  ' + '|'.repeat(Math.max(1, Math.round(c.n / counts[0].n * 30))));
+        });
+        lines.push('');
+    });
+    return lines.join('\n').trim();
+}
+
+function applySummary(comp, argsText, keysByLabel, compByKey, row) {
+    const problems = [], sections = [];
+    (argsText.match(/("[^"]*"|[^,])+/g) || []).map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean).forEach(label => {
+        const keys = keysByLabel.get(label.toLowerCase()) || [];
+        if (!keys.length) return problems.push(`no field labeled "${label}"`);
+        const first = compByKey.get(keys[0]);
+        const choices = choicesOf(first);
+        if (!choices.length) return problems.push(`"${label}" has no choice list to count`);
+        sections.push({ t: first.label.toUpperCase(), keys, choices: choices.map(o => ({ l: o.label, v: o.value })) });
+    });
+    if (!sections.length) problems.push('list choice fields to summarize: =SUMMARY(Field One, Field Two)');
+    comp.calculateValue = `value = (${summaryText.toString()})(${JSON.stringify(sections)}, data);`;
+    comp.disabled = true;
+    // Monospace so the dots, counts and bars line up (Bootstrap 4 and 5 class names)
+    comp.customClass = ((comp.customClass || '') + ' text-monospace font-monospace').trim();
+    if (problems.length) compileWarnings.push({ row, text: 'Summary problem: ' + problems.join('; ') });
+    else compileHints.push({ row, text: `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')} across ${sections[0].keys.length} entr${sections[0].keys.length === 1 ? 'y' : 'ies'} (text bars, saved in the entry, updates live)` });
+}
+
+// Top-level "[currency: =...]" formulas (and SUMMARY), resolved once the whole form exists (labels can point anywhere)
 function resolveFormulas(pending, rootComponents) {
-    const { keysByLabel, outputKeys, grids } = buildLabelIndex(rootComponents);
+    const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
 
     pending.forEach(({ comp, formula, row }) => {
         if (!outputKeys.has(comp.key)) {
             compileWarnings.push({ row, text: "Formulas inside a [repeat] or grid row aren't supported this way: ignored" });
             return;
         }
+        const summary = formula.match(/^SUMMARY\((.*)\)$/i);
+        if (summary) return applySummary(comp, summary[1], keysByLabel, compByKey, row);
         const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
         applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
     });
@@ -1012,30 +1064,45 @@ function resolveCharts(pending, rootComponents) {
 // "~showWhen: Near Miss Type = Other": show this field only when another field (by label) has that value.
 // Inside a grid row it checks the same row first. Choices match by label or value, so it works with or without @.
 // A required field that's hidden isn't validated, so "!" + showWhen = required only when shown.
+// Sets one showWhen conditional. findKeys(label) → candidate keys; getComp(key) → component; scope = hint suffix
+function setShowWhen(comp, text, row, findKeys, getComp, scope) {
+    const warn = (t) => compileWarnings.push({ row, text: 'Show when: ' + t });
+    const m = text.match(/^\s*"?([^"=]+?)"?\s*=\s*"?(.*?)"?\s*$/);
+    if (!m || !m[2]) return warn('write it as ~showWhen: Field Label = Value');
+    const label = m[1].trim(), wanted = m[2].trim();
+    const keys = findKeys(label);
+    if (keys.length === 0) return warn(`no field labeled "${label}"${scope ? scope.replace(/^ \(in/, ' in') : ''}`);
+    if (keys.length > 1) return warn(`"${label}" matches ${keys.length} fields; labels used in showWhen must be unique`);
+    if (keys[0] === comp.key) return warn(`"${label}" is this field itself`);
+    const source = getComp(keys[0]);
+    const choices = choicesOf(source);
+    let eq = wanted;
+    if (choices.length) {
+        const choice = choices.find(o => String(o.label).toLowerCase() === wanted.toLowerCase() || String(o.value) === wanted);
+        if (!choice) return warn(`"${wanted}" isn't one of ${source.label}'s choices`);
+        eq = choice.value;
+    }
+    comp.conditional = { show: true, when: keys[0], eq };
+    compileHints.push({ row, text: `Shows only when ${source.label} = ${wanted}${scope}` });
+}
+
+// Inside a [repeat]: resolved right away against the field's siblings in the group, before the copies are made.
+// The repeater then points each copy's conditional at the same copy's field.
+function showWhenInRepeat(comp, text, row, repeat) {
+    const siblings = repeat.components;
+    setShowWhen(comp, text, row,
+        (label) => siblings.filter(c => c.input && (c.label || '').trim().toLowerCase() === label.toLowerCase()).map(c => c.key),
+        (key) => siblings.find(c => c.key === key), ' (in the same copy)');
+}
+
 function resolveShowWhen(pending, rootComponents) {
-    const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
+    const { keysByLabel, compByKey, grids } = buildLabelIndex(rootComponents);
     pending.forEach(({ comp, text, row }) => {
-        const warn = (t) => compileWarnings.push({ row, text: 'Show when: ' + t });
-        const m = text.match(/^\s*"?([^"=]+?)"?\s*=\s*"?(.*?)"?\s*$/);
-        if (!m || !m[2]) return warn('write it as ~showWhen: Field Label = Value');
-        const label = m[1].trim(), wanted = m[2].trim();
         const grid = grids.find(g => (g.comp.components || []).includes(comp));
-        if (!grid && !outputKeys.has(comp.key)) return warn("not supported inside a [repeat]: ignored");
-        let keys = grid && grid.cols.has(label.toLowerCase()) ? [grid.cols.get(label.toLowerCase())] : [];
-        if (!keys.length) keys = keysByLabel.get(label.toLowerCase()) || [];
-        if (keys.length === 0) return warn(`no field labeled "${label}"`);
-        if (keys.length > 1) return warn(`"${label}" matches ${keys.length} fields; labels used in showWhen must be unique`);
-        if (keys[0] === comp.key) return warn(`"${label}" is this field itself`);
-        const source = compByKey.get(keys[0]);
-        const choices = choicesOf(source);
-        let eq = wanted;
-        if (choices.length) {
-            const choice = choices.find(o => String(o.label).toLowerCase() === wanted.toLowerCase() || String(o.value) === wanted);
-            if (!choice) return warn(`"${wanted}" isn't one of ${source.label}'s choices`);
-            eq = choice.value;
-        }
-        comp.conditional = { show: true, when: keys[0], eq };
-        compileHints.push({ row, text: `Shows only when ${source.label} = ${wanted}${grid ? ' (in the same row)' : ''}` });
+        setShowWhen(comp, text, row, (label) => {
+            const inRow = grid && grid.cols.has(label.toLowerCase()) ? [grid.cols.get(label.toLowerCase())] : [];
+            return inRow.length ? inRow : (keysByLabel.get(label.toLowerCase()) || []);
+        }, (key) => compByKey.get(key), grid ? ' (in the same row)' : '');
     });
 }
 
@@ -1143,9 +1210,12 @@ function compileShorthand() {
             } else if (!settingsTarget) {
                 compileWarnings.push({ row: i, text: 'A ~ setting must sit under the component it belongs to, with no blank line in between' });
             } else if (setting.path === 'showWhen') {
-                // Compiler setting: resolved by label once the whole form exists
+                // Compiler setting: inside a [repeat] it's resolved now (before the copies exist); elsewhere once the whole form exists
+                const repeat = containerStack[containerStack.length - 1];
                 if (settingsTarget === bulkDef) compileWarnings.push({ row: i, text: "~showWhen isn't supported under a +++ bulk block" });
-                else { pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i }); lineComps[i] = settingsTarget; }
+                else if (repeat && repeat.type === 'repeat' && repeat.components.includes(settingsTarget)) showWhenInRepeat(settingsTarget, String(setting.value), i, repeat);
+                else pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i });
+                lineComps[i] = settingsTarget;
             } else if (settingsTarget === bulkDef) {
                 bulkDef.settings.push({ setting, row: i });
             } else {

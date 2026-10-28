@@ -78,7 +78,7 @@ Put `~` lines under a component to set anything Form.io supports — no builder 
 *   `~name` alone means true; values like `5`, `true`, `"text"` or `[1,2]` are read as their proper type. Nested settings use dots (`~validate.minLength: 10`).
 *   `~` lines belong to the component directly above (choices and settings can mix) until a blank line. Under a `+++` line they apply to every question in the block; under a `[panel]` they set the panel's own options.
 *   Hover the margin: ⓘ explains each setting and shows Form.io's default; ⚠ flags settings Form.io doesn't know (still applied), invalid option values, and `~label` / `~key` / `~type` / `~input` (owned by the shorthand). Overriding something the compiler set is noted, with ⚠ for ones compiler features rely on (e.g. `values`, `calculateValue`).
-*   **`~showWhen: Field Label = Value`** (a compiler setting, first in every `~` menu) shows a field only when another field has that value — by label, so it never breaks when keys regenerate. Inside a grid row it checks the same row. Combine with `!` to make a field required only when it's shown. ⚠ flags unknown labels and values that aren't one of that field's choices.
+*   **`~showWhen: Field Label = Value`** (a compiler setting, first in every `~` menu) shows a field only when another field has that value — by label, so it never breaks when keys regenerate. Inside a grid row it checks the same row; inside a `[repeat]` each copy checks its own copy. Combine with `!` to make a field required only when it's shown. ⚠ flags unknown labels and values that aren't one of that field's choices.
 *   The settings list comes from open-source Form.io 4 and loads the first time you use `~`. Custom code settings (custom JS, logic) aren't listed — set those in your builder.
 
 Nothing changes for shorthand without `~` lines.
@@ -161,6 +161,22 @@ Define an Edit Grid's columns in one line. While entering a row the fields stack
 *   **Labels with symbols:** put labels containing `+ - * / ( )` in quotes inside formulas, e.g. `"Travel / Equipment"`.
 
 Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in Favorites for a complete example.
+
+### Text Summaries (SUMMARY)
+A read-only text box that counts choice fields and draws text bars — saved **as text in the entry**, so it shows in card views, exports, and Stimulsoft PDFs (unlike HTML charts):
+```text
+[textarea: =SUMMARY(Near Miss Type, PPE Not Worn)] Quarterly Summary
+```
+```text
+NEAR MISS TYPE (4 total)
+Electrical hazards ........ 3 (75%)
+  ||||||||||||||||||||||||||||||
+Inadequate housekeeping ... 1 (25%)
+  ||||||||||
+```
+*   One section per field: choices most frequent first (zeros hidden), with count, % and a `|` bar scaled to the largest (30 bars), each bar on its own line so it reads the same at any width.
+*   Counts **every field with that label** — so all copies of a `[repeat]` are included. Ideal with `[repeat: 10] Near Miss` for flat, platform-friendly incident logs.
+*   Shown in monospace so it lines up; updates live; ⚠ flags unknown labels and fields without a choice list.
 
 ### Live Charts
 Chart number or currency fields by their labels — the chart redraws as people type:
