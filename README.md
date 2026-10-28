@@ -183,11 +183,19 @@ Drop static text into your form. `[html]` takes the HTML tag after the colon (de
 [content] <p>Please read the following carefully.</p>
 ```
 
-### Clean Print Button
-`[print]` adds a print button (the label is the button text, defaulting to "Screenshot PDF"). When clicked, it prints the form with navigation bars, toolbars, sidebars, and buttons hidden for a clean page.
+### Export Clean PDF
+`[print]` adds a compact **Export Clean PDF** button (right-aligned; put the line first for a toolbar feel). `[print] Your Label` renames it.
 ```text
-[print] Print This Form
+[print]
+[panel] Site Inspection
+...
 ```
+When clicked it prints **only the form** — not the app around it — so it works whatever your platform's layout:
+*   Copies the form into an invisible print page with your app's own styles, carrying over typed values, choices, and long text in full; signatures become images; charts come along as-is.
+*   Strips buttons, edit/delete icons, error text, and itself.
+*   Adds a header with the form title and print date/time, and page numbers where the browser supports them.
+*   Names the PDF `Form Title - YYYY-MM-DD` when "Save as PDF" is chosen.
+*   Installs itself whenever the form is drawn, so it works on new and saved entries, in Edit and View (like charts, it needs the platform to allow Form.io template code).
 
 ### Bulk Mode
 Need to ask the same type of question 50 times? Wrap your questions in `+++` tags to inherit the parent component type. For multiple choice fields, define your choices at the top, and they will apply to every question below!

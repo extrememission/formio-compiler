@@ -531,75 +531,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         return { type: 'table', label: label, key: generateSmartKey(label), numRows: rows, numCols: cols, rows: tableRows, input: false, tableView: false };
     }
 
-    if (type === 'print') {
-        const btnText = label || "Screenshot PDF";
-        return {
-            title: btnText,
-            label: btnText,
-            key: generateSmartKey("printPanel"),
-            type: "panel",
-            theme: "primary",
-            input: false,
-            tableView: false,
-            collapsible: false,
-            customClass: "no-print",
-            components: [
-                {
-                    label: "Clean Print Init",
-                    key: "cleanPrintInit",
-                    type: "hidden",
-                    input: true,
-                    tableView: false,
-                    persistent: false,
-                    clearOnHide: false,
-                    customDefaultValue: `var HIDE = [
-  'nav', 'header', 'footer', 'aside',
-  '[role="navigation"]', '[role="banner"]', '[role="complementary"]',
-  '.menu', '.navbar', '.toolbar', '.app-bar', '.sidebar', '.drawer',
-  '.fab', '.floating-action-button',
-  'button', '.no-print',
-  '.more-actions', '.action-button',
-  'a.active.link-underline.link-underline-opacity-0.link-underline-opacity-100-hover',
-  'a.link-underline.link-underline-opacity-0.link-underline-opacity-100-hover.fs-6'
-].join(',');
-
-if (!document.getElementById('formio-clean-print')) {
-  var s = document.createElement('style');
-  s.id = 'formio-clean-print';
-  s.textContent = '@media print{' +
-    HIDE + '{display:none!important}' +
-    'html,body{margin:0!important;padding:0!important;overflow:visible!important}' +
-    'main,article,[role="main"],.content{width:100%!important;max-width:none!important;margin:0!important}' +
-    '@page{margin:.5in}' +
-  '}';
-  document.head.appendChild(s);
-}
-
-if (!window.__formioCleanPrint) {
-  window.__formioCleanPrint = true;
-  document.addEventListener('click', function (e) {
-    if (e.target.closest('.js-print')) {
-      e.preventDefault();
-      window.print();
-    }
-  });
-}
-
-value = true;`
-                },
-                {
-                    label: "Print Button",
-                    key: "printButtonHtml",
-                    type: "htmlelement",
-                    tag: "div",
-                    input: false,
-                    tableView: false,
-                    refreshOnChange: false,
-                    content: `<button type="button" class="btn btn-light btn-sm w-100 py-1 js-print no-print">${btnText}</button>`
-                }
-            ]
-        };
-    }
+    if (type === 'print') return buildCleanPdfButton(label || 'Export Clean PDF');
 
     if (type.startsWith('fs') && type.length > 2) {
         const key = usedLookupKeys.has(type) ? generateSmartKey(type) : type;
@@ -840,6 +772,109 @@ function resolveFormulas(pending, rootComponents) {
         const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
         applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
     });
+}
+
+// --- Clean PDF: [print] Export Clean PDF ---
+// Prints ONLY the form: copies it (with typed values, signatures as images) into an invisible print page that
+// carries the app's stylesheets, adds a title/date header, and prints that. Nothing around the form can get in,
+// whatever the app's layout. The PDF is named "Form Title - YYYY-MM-DD". Installed by the button's own HTML
+// template, so it works on new and saved entries, in Edit and View.
+// Its source is embedded URI-encoded: Form.io sanitizes HTML Element content before running the template,
+// and raw code containing things like "<title>" would be mangled by the sanitizer.
+function cleanPdfRun(btn) {
+    var root = btn.closest('.formio-form') || btn.closest('form') || document.body;
+    var clone = root.cloneNode(true);
+
+    // Carry typed values over (cloning copies markup, not what was typed)
+    var src = root.querySelectorAll('input, textarea, select'), dst = clone.querySelectorAll('input, textarea, select');
+    for (var i = 0; i < src.length && i < dst.length; i++) {
+        var s = src[i], d = dst[i];
+        if (s.type === 'checkbox' || s.type === 'radio') {
+            if (s.checked) d.setAttribute('checked', 'checked'); else d.removeAttribute('checked');
+        } else if (s.tagName === 'SELECT') {
+            for (var j = 0; j < s.options.length; j++) if (s.options[j].selected && d.options[j]) d.options[j].setAttribute('selected', 'selected');
+        } else if (s.tagName === 'TEXTAREA') {
+            // A div shows the full text; a textarea would cut long answers off
+            var box = document.createElement('div');
+            box.className = 'form-control clean-pdf-text';
+            box.textContent = s.value;
+            d.parentNode.replaceChild(box, d);
+        } else {
+            d.setAttribute('value', s.value);
+        }
+    }
+
+    // Signatures and other drawings → images
+    var srcCanvas = root.querySelectorAll('canvas'), dstCanvas = clone.querySelectorAll('canvas');
+    for (var k = 0; k < srcCanvas.length && k < dstCanvas.length; k++) {
+        try {
+            var img = document.createElement('img');
+            img.src = srcCanvas[k].toDataURL('image/png');
+            img.style.maxWidth = '100%';
+            dstCanvas[k].parentNode.replaceChild(img, dstCanvas[k]);
+        } catch (err) { /* tainted canvas: leave it */ }
+    }
+
+    // Strip clutter: buttons, the print button itself, error text
+    clone.querySelectorAll('button, .no-print, .formio-errors, .invalid-feedback, .choices__button, .signature-pad-refresh').forEach(function (el) { el.remove(); });
+
+    var heading = root.querySelector('.card-title, legend, h1, h2, h3');
+    var title = ((heading && heading.textContent) || document.title || 'Form').trim().replace(/\s+/g, ' ');
+    var now = new Date();
+    var stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    var pdfName = (title + ' - ' + stamp).replace(/[\\/:*?"<>|]+/g, '-');
+    var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var styles = Array.prototype.map.call(document.querySelectorAll('link[rel="stylesheet"], style'), function (n) { return n.outerHTML; }).join('');
+    var css = 'body.clean-pdf { background: #fff; margin: 0; padding: 0; } ' +
+        '.clean-pdf-header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 14px; font-size: 12px; } ' +
+        '.clean-pdf-header strong { font-size: 16px; } ' +
+        '.clean-pdf-text { height: auto; min-height: 38px; white-space: pre-wrap; } ' +
+        '.form-group { break-inside: avoid; } ' +
+        '* { -webkit-print-color-adjust: exact; print-color-adjust: exact; } ' +
+        '@page { margin: 0.5in; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; } } ';
+
+    var frame = document.createElement('iframe');
+    frame.style.cssText = 'position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0; visibility: hidden;';
+    document.body.appendChild(frame);
+    var doc = frame.contentDocument;
+    doc.open();
+    doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(pdfName) + '</title>' + styles +
+        '<style>' + css + '</style></head><body class="clean-pdf"><div class="clean-pdf-header"><strong>' + esc(title) +
+        '</strong><span>Printed ' + esc(now.toLocaleString()) + '</span></div></body></html>');
+    doc.close();
+    doc.body.appendChild(doc.importNode(clone, true));
+
+    // Print once the app's stylesheets have loaded in the print page (or after 3s at the latest)
+    var links = doc.querySelectorAll('link[rel="stylesheet"]'), waiting = links.length, done = false;
+    var go = function () {
+        if (done) return;
+        done = true;
+        var oldTitle = document.title;
+        document.title = pdfName; // some browsers name the PDF after the main page
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        setTimeout(function () { document.title = oldTitle; }, 1000);
+        setTimeout(function () { frame.remove(); }, 60000);
+    };
+    links.forEach(function (l) { l.addEventListener('load', function () { if (--waiting <= 0) go(); }); l.addEventListener('error', function () { if (--waiting <= 0) go(); }); });
+    if (!waiting) setTimeout(go, 50);
+    setTimeout(go, 3000);
+}
+
+function buildCleanPdfButton(text) {
+    const icon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:6px;" aria-hidden="true">' +
+        '<path d="M4 0h5.5L14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5 1.5V5h3.5L9 1.5zM5 8h6v1H5V8zm0 2h6v1H5v-1zm0 2h4v1H5v-1z"/></svg>';
+    const install = '{% if (!window.__formioCleanPdf) { window.__formioCleanPdf = new Function("return " + decodeURIComponent("' +
+        encodeURIComponent(cleanPdfRun.toString()) + '"))(); document.addEventListener("click", function (e) { ' +
+        // No & < > here: the sanitizer would turn them into &amp; etc. and break the code
+        'var b = e.target.closest ? e.target.closest(".js-clean-pdf") : null; if (b) { e.preventDefault(); window.__formioCleanPdf(b); } ' + '}); } %}';
+    return {
+        label: text, key: generateSmartKey('cleanPdf'), type: 'htmlelement', tag: 'div',
+        input: false, tableView: false, customClass: 'no-print',
+        content: install + '<div style="text-align:right;"><button type="button" class="btn btn-outline-primary btn-sm js-clean-pdf" ' +
+            'title="Creates a clean, print-ready PDF of this form (charts and signatures included). Choose Save as PDF in the print window.">' +
+            icon + escapeHtml(text) + '</button></div>'
+    };
 }
 
 // --- Charts: [chart: Labor Total, Materials Total, SUM(Ext. Price)] Cost Breakdown ---
@@ -1471,7 +1506,7 @@ const quickSnippets = [
     { name: 'signature', desc: 'Signature Pad', syntax: '[signature] ${1:Signature}' },
     { name: 'html', desc: 'HTML Element', syntax: '[html: ${2:h2}] ${1:Heading}' },
     { name: 'content', desc: 'HTML Content', syntax: '[content] ${1:<p>Content</p>}' },
-    { name: 'print', desc: 'Clean Print Button', syntax: '[print] ${1:Print}' },
+    { name: 'print', desc: 'Export Clean PDF button', syntax: '[print] ${1:Export Clean PDF}' },
     { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' },
     { name: 'bulknotesif', desc: 'Bulk + notes when picked', syntax: '+++ ![radio] ${1:Notes}?\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' },
     { name: 'bulknotes', desc: 'Bulk + always-on notes', syntax: '+++ ![radio] ${1:Notes}\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' }
