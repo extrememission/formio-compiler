@@ -271,7 +271,17 @@ Your choice is remembered in this browser. UUIDs aren't needed in the pasted JSO
 Every component in the output has a `label`, just like builder-made ones: `[content]` gets `"Content"` and `[html]` (plus repeat headings and dividers) gets `"HTML"`, Form.io's own defaults. These never display on the form, but some platform viewers expect every component to have a label and show a blank entry card without one.
 
 ### Tables
-`[table: 3x2] Layout Table` generates an empty 3 row, 2 column table. Tables are **not** containers — fields typed below a table are not placed into its cells.
+Tables are containers: fields typed under a table fill its cells **left to right, top to bottom**, one per cell, until a blank line. Choices and `~` lines under a field work as usual, and a container (like a `[panel]`) takes one cell with its contents inside it.
+```text
+[table: 2x2] Signatures
+![signature] Employee Signature
+![signature] Supervisor Signature
+![date] Employee Date
+![date] Supervisor Date
+```
+*   `[table: 2x2]` = 2 rows × 2 columns (fixed). More fields than cells adds rows, with a ⚠.
+*   `[table: 2]` = 2 columns, adding rows as fields fill them.
+*   `[table]` alone = 3 × 3.
 
 ### API Keys
 Every component gets an auto-generated key: the first three words of its label in camelCase plus a random 4-character suffix (e.g. `Company Name` → `companyName_x7k2`). The suffix is regenerated every time the shorthand recompiles, so copy or download your JSON once you're happy with it — re-compiling the same shorthand later will produce different keys.

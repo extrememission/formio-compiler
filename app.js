@@ -284,7 +284,7 @@ function previewSchema() {
             c.dataSrc = 'values';
             c.data = { values: opts.map(o => ({ label: o, value: o })) };
         }
-        if (c.components) addDemo(c.components);
+        childListsOf(c).forEach(addDemo);
     });
     addDemo(components);
     return { display: 'form', components };
@@ -521,14 +521,21 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
     if (type === 'content') return { type: 'content', html: label, key: generateSmartKey('content') };
     
     if (type === 'table') {
-        let rows = 3, cols = 3;
-        if (choicesStr && choicesStr.includes('x')) {
-            const parts = choicesStr.split('x');
+        // [table: 2x3] = 2 rows × 3 columns (fixed); [table: 2] = 2 columns, rows added as fields fill them; [table] = 3×3
+        let rows = 3, cols = 3, autoRows = false;
+        if (choicesStr && /x/i.test(choicesStr)) {
+            const parts = choicesStr.toLowerCase().split('x');
             rows = parseInt(parts[0]) || 3;
             cols = parseInt(parts[1]) || 3;
+        } else if (parseInt(choicesStr)) {
+            cols = parseInt(choicesStr);
+            rows = 1;
+            autoRows = true;
         }
         const tableRows = Array(rows).fill(0).map(() => Array(cols).fill(0).map(() => ({ components: [] })));
-        return { type: 'table', label: label, key: generateSmartKey(label), numRows: rows, numCols: cols, rows: tableRows, input: false, tableView: false };
+        const table = { type: 'table', label: label, key: generateSmartKey(label), numRows: rows, numCols: cols, rows: tableRows, input: false, tableView: false };
+        tableFill.set(table, { next: 0, autoRows, warned: false });
+        return table;
     }
 
     if (type === 'print') return buildCleanPdfButton(label || 'Export Clean PDF');
@@ -685,6 +692,28 @@ function findGridColumn(target, grids) {
     return { matches, col };
 }
 
+// Every list of child components a component holds: components, columns, and table cells
+const childListsOf = (c) => [c.components || [],
+    ...(c.columns || []).map(col => col.components || []),
+    ...(Array.isArray(c.rows) ? c.rows : []).flatMap(r => (r || []).map(cell => (cell && cell.components) || []))];
+
+// Tables are containers: each component typed under [table] fills the next cell, left to right, top to bottom
+const tableFill = new WeakMap(); // table → { next cell index, autoRows, warned }
+function addToTable(table, comp, row) {
+    const state = tableFill.get(table), cols = table.numCols;
+    const r = Math.floor(state.next / cols), c = state.next % cols;
+    if (r >= table.rows.length) {
+        if (!state.autoRows && !state.warned) {
+            compileWarnings.push({ row, text: `More fields than cells in this ${table.numRows}x${cols} table: extra rows added (use [table: ${cols}] to grow rows on purpose)` });
+            state.warned = true;
+        }
+        table.rows.push(Array(cols).fill(0).map(() => ({ components: [] })));
+        table.numRows = table.rows.length;
+    }
+    table.rows[r][c].components.push(comp);
+    state.next++;
+}
+
 // The choice list of a radio / select / selectboxes component ([] for anything else)
 const choicesOf = (c) => (c && (c.type === 'select' ? (c.data && c.data.values) : c.values)) || [];
 
@@ -752,8 +781,8 @@ function buildLabelIndex(rootComponents) {
             (c.components || []).forEach(k => compByKey.set(k.key, k));
             grids.push({ label: (c.label || '').trim().toLowerCase(), key: c.key, comp: c,
                 cols: new Map((c.components || []).map(k => [(k.label || '').trim().toLowerCase(), k.key])) });
-        } else if (c.components) {
-            walk(c.components);
+        } else {
+            childListsOf(c).forEach(walk);
         }
     });
     walk(rootComponents);
@@ -1057,15 +1086,16 @@ function compileShorthand() {
         }));
     };
 
+    let currentRow = 0;
     const pushComponent = (comp) => {
-        if (containerStack.length > 0) {
-            containerStack[containerStack.length - 1].components.push(comp);
-        } else {
-            rootComponents.push(comp);
-        }
+        const parent = containerStack[containerStack.length - 1];
+        if (!parent) rootComponents.push(comp);
+        else if (parent.type === 'table') addToTable(parent, comp, currentRow);
+        else parent.components.push(comp);
     };
 
     for (let i = 0; i < lines.length; i++) {
+        currentRow = i;
         let line = lines[i].trim();
         if (!line) {
             lastFieldComponent = null;
@@ -1199,7 +1229,7 @@ function compileShorthand() {
                 }
                 if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
                 if (chartOf.has(comp)) pendingCharts.push({ comp, itemsStr: chartOf.get(comp), row: i });
-                if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(def.type)) {
+                if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat', 'table'].includes(def.type)) {
                     if (def.type !== 'repeat') {
                         pushComponent(comp);
                     }
@@ -1250,7 +1280,7 @@ function compileShorthand() {
 
     // Resolve each line's component to its key in the output (repeat copies are suffixed _1, _2, ...)
     const outputKeys = new Set();
-    const collectKeys = (list) => list.forEach(c => { outputKeys.add(c.key); if (c.components) collectKeys(c.components); });
+    const collectKeys = (list) => list.forEach(c => { outputKeys.add(c.key); childListsOf(c).forEach(collectKeys); });
     collectKeys(rootComponents);
     lineKeys = lineComps.map(c => !c ? null
         : outputKeys.has(c.key) ? c.key
