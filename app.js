@@ -1249,10 +1249,13 @@ document.getElementById('btn-copy').addEventListener('click', () => {
     });
 });
 
-// Download: mobile → share sheet; Chrome/Edge desktop → native Save dialog; others → ask for a name, then download
+// Download: mobile → share sheet; desktop → straight to Downloads, no dialog.
+// Named after the form (first panel/field set title, or first label); the browser adds (1), (2)... if the name exists.
 document.getElementById('btn-download').addEventListener('click', async () => {
     const jsonStr = editor.getValue();
-    const suggestedName = 'form_schema.json';
+    const first = lastComponents[0] || {};
+    const formName = String(first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
+    const suggestedName = formName + '.json';
 
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
@@ -1264,29 +1267,10 @@ document.getElementById('btn-download').addEventListener('click', async () => {
         }
     }
 
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName,
-                types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }]
-            });
-            const writable = await handle.createWritable();
-            await writable.write(jsonStr);
-            await writable.close();
-        } catch (e) {
-            if (e.name !== 'AbortError') alert('Could not save the file: ' + e.message);
-        }
-        return;
-    }
-
-    let fileName = prompt('Save as:', suggestedName);
-    if (!fileName || !fileName.trim()) return;
-    fileName = fileName.trim();
-    if (!fileName.toLowerCase().endsWith('.json')) fileName += '.json';
     const url = URL.createObjectURL(new Blob([jsonStr], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = suggestedName;
     a.click();
     URL.revokeObjectURL(url);
 });
@@ -1315,8 +1299,9 @@ document.getElementById('btn-export-favs').addEventListener('click', () => {
     const tx = db.transaction('favorites', 'readonly');
     const req = tx.objectStore('favorites').getAll();
     req.onsuccess = () => {
-        const favs = req.result;
-        favs.forEach(f => delete f.id); 
+        // Built-in templates ship with the app, so backups only carry your own favorites
+        const favs = req.result.filter(f => f.date !== 'System Default');
+        favs.forEach(f => delete f.id);
         const blob = new Blob([JSON.stringify(favs, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -1339,18 +1324,28 @@ fileImport.addEventListener('change', (e) => {
             const favs = JSON.parse(event.target.result);
             if (!Array.isArray(favs)) throw new Error("Invalid format");
             
+            // Merge: skip built-in templates and exact duplicates; same name with different content → "Name (imported)"
             const tx = db.transaction('favorites', 'readwrite');
             const store = tx.objectStore('favorites');
-            let count = 0;
-            favs.forEach(f => {
-                delete f.id;
-                if (f.name && f.shorthand) {
+            const existingReq = store.getAll();
+            let count = 0, skipped = 0;
+            existingReq.onsuccess = () => {
+                const existing = existingReq.result;
+                const same = new Set(existing.map(f => f.name + '\u0000' + f.shorthand));
+                const names = new Set(existing.map(f => f.name));
+                favs.forEach(f => {
+                    delete f.id;
+                    if (!f.name || !f.shorthand) return;
+                    if (f.date === 'System Default' || same.has(f.name + '\u0000' + f.shorthand)) { skipped++; return; }
+                    if (names.has(f.name)) f.name += ' (imported)';
+                    same.add(f.name + '\u0000' + f.shorthand);
+                    names.add(f.name);
                     store.add(f);
                     count++;
-                }
-            });
+                });
+            };
             tx.oncomplete = () => {
-                alert(`Successfully imported ${count} favorites!`);
+                alert(`Imported ${count} favorite${count === 1 ? '' : 's'}` + (skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'} or built-in template${skipped === 1 ? '' : 's'}.` : '.'));
                 fileImport.value = ''; // reset
                 document.getElementById('btn-list-favs').click(); // refresh list
             };
