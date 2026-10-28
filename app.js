@@ -1525,6 +1525,7 @@ const quickSnippets = [
     { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] ${1:Data Grid}' },
     { name: 'well', desc: 'Well Container', syntax: '[well] ${1:Well}' },
     { name: 'table', desc: 'Table Layout', syntax: '[table: ${2:2x2}] ${1:Table}' },
+    { name: 'sidebyside', desc: 'Two fields side by side (no table)', syntax: '[${1:textfield}] ${2:Left Field}\n~customClass: "d-inline-block w-50 align-top pr-2"\n[${3:textfield}] ${4:Right Field}\n~customClass: "d-inline-block w-50 align-top"' },
     { name: 'textfield', desc: 'Text Field', syntax: '[textfield] ${1:Text Field}' },
     { name: 'textarea', desc: 'Text Area', syntax: '[textarea] ${1:Text Area}' },
     { name: 'number', desc: 'Number Input', syntax: '[number] ${1:Number}' },
