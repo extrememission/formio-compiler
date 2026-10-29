@@ -422,7 +422,10 @@ function addRowFormula(grid, text, row) {
 }
 
 // @ radio/select keep the label as the value; everything else gets a unique smart key
-const choiceValue = (comp, opt) => asIsComps.has(comp) ? opt : generateSmartKey(opt);
+// @ values are the label with spaces → underscores ("Safety_toe_leather_footwear"): readable, and PDF/report
+// tools that split values on spaces keep it as one item. Everything else gets a unique smart key.
+const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, '_');
+const choiceValue = (comp, opt) => asIsComps.has(comp) ? asIsValue(opt) : generateSmartKey(opt);
 
 function generateSmartKey(label) {
     if (!label) return 'comp_' + Math.random().toString(36).substring(2,6);
@@ -564,7 +567,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
 
     const base = { label: label, key: generateSmartKey(label), type: type, input: true, tableView: true };
     if (isRequired) base.validate = { required: true };
-    if (asIs && (type === 'radio' || type === 'select')) asIsComps.add(base);
+    if (asIs && ['radio', 'select', 'selectboxes'].includes(type)) asIsComps.add(base);
 
     // "[currency: =Hours * Rate] Total": a formula written with labels; keys are filled in later
     const formula = choicesStr && choicesStr.startsWith('=') ? choicesStr.slice(1).trim() : null;
@@ -672,7 +675,7 @@ function addChoice(comp, optText, row) {
     const list = comp.type === 'select'
         ? ((comp.data = comp.data || { values: [] }).values = comp.data.values || [])
         : (comp.values = comp.values || []);
-    if (asIsComps.has(comp) && list.some(o => o.value === optText)) {
+    if (asIsComps.has(comp) && list.some(o => o.value === asIsValue(optText))) {
         compileWarnings.push({ row, text: `Duplicate choice "${optText}": two choices with the same value in one question` });
     }
     list.push({ label: optText, value: choiceValue(comp, optText) });
@@ -800,21 +803,72 @@ function buildLabelIndex(rootComponents) {
     return { keysByLabel, outputKeys, compByKey, grids };
 }
 
-// "[textarea: =SUMMARY(Near Miss Type, PPE Not Worn)] Quarterly Summary": a read-only text report saved in the entry.
-// For each field: its choices with count, % and a | bar (longest = 30), most frequent first, zeros hidden.
-// Counts every field with that label, so all copies of a [repeat] are included.
-// summaryText runs inside the form (its source is embedded in calculateValue).
+// --- Text reports saved in the entry: SUMMARY (counts), LIST BY (grouped list), LOG (one line per entry) ---
+// Fields are found by label across every [repeat] copy. The *Text functions run inside the form
+// (their source is embedded in calculateValue), so they use plain ES5.
+
+// fs lookups save whatever the app's endpoint gives (maybe just an ID). A hidden twin copies the name the
+// lookup DISPLAYS into the entry as text, and reports read that.
+const isLookup = (c) => !!c && c.type === 'select' && !c.dataSrc && String(c.key).startsWith('fs');
+function ensureNameCopy(lookup, rootComponents, done) {
+    const nameKey = lookup.key + '_name';
+    if (done.has(nameKey)) return nameKey;
+    done.add(nameKey);
+    const twin = { label: lookup.label + ' (name)', key: nameKey, type: 'hidden', input: true, tableView: false,
+        // getView returns display HTML (e.g. <span>John Smith</span>): keep just the text
+        calculateValue: "var w = instance.root.getComponent('" + lookup.key + "'); var box = document.createElement('div'); " +
+            "box.innerHTML = w ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();" };
+    const place = (list) => {
+        const i = list.indexOf(lookup);
+        if (i !== -1) { list.splice(i + 1, 0, twin); return true; }
+        return list.some(c => childListsOf(c).some(place));
+    };
+    place(rootComponents);
+    return nameKey;
+}
+
+// One report field: every copy's key (name twins for lookups), its kind, and value → label for choices
+function reportField(label, ctx) {
+    const keys = ctx.keysByLabel.get(label.toLowerCase()) || [];
+    if (!keys.length) return { error: `no field labeled "${label}"` };
+    const first = ctx.compByKey.get(keys[0]);
+    const lookup = isLookup(first);
+    const choices = lookup ? [] : choicesOf(first);
+    return {
+        t: first.label,
+        kind: first.type === 'datetime' ? 'date' : 'value',
+        keys: lookup ? keys.map(k => ensureNameCopy(ctx.compByKey.get(k), ctx.rootComponents, ctx.done)) : keys,
+        map: Object.fromEntries(choices.map(o => [o.value, o.label])),
+        choices: choices.map(o => ({ l: o.label, v: o.value }))
+    };
+}
+const splitLabels = (s) => (s.match(/("[^"]*"|[^,])+/g) || []).map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
+
+// SUMMARY: per field, each value with count and %, most frequent first, zeros hidden.
+// Fields with a choice list count those choices; others (e.g. worker names) count whatever was entered.
 function summaryText(sections, data) {
     var lines = [];
     sections.forEach(function (s) {
-        var counts = s.choices.map(function (c) {
-            var n = 0;
+        var counts;
+        if (s.choices.length) {
+            counts = s.choices.map(function (c) {
+                var n = 0;
+                s.keys.forEach(function (k) {
+                    var x = data[k];
+                    if (Array.isArray(x) ? x.indexOf(c.v) !== -1 : (x && typeof x === 'object' ? x[c.v] === true : x === c.v)) n++;
+                });
+                return { l: c.l, n: n };
+            });
+        } else {
+            var seen = {};
             s.keys.forEach(function (k) {
                 var x = data[k];
-                if (Array.isArray(x) ? x.indexOf(c.v) !== -1 : (x && typeof x === 'object' ? x[c.v] === true : x === c.v)) n++;
+                if (x === undefined || x === null || x === '') return;
+                (Array.isArray(x) ? x : [x]).forEach(function (v) { v = String(v); seen[v] = (seen[v] || 0) + 1; });
             });
-            return { l: c.l, n: n };
-        }).filter(function (c) { return c.n > 0; }).sort(function (a, b) { return b.n - a.n; });
+            counts = Object.keys(seen).map(function (l) { return { l: l, n: seen[l] }; });
+        }
+        counts = counts.filter(function (c) { return c.n > 0; }).sort(function (a, b) { return b.n - a.n || a.l.localeCompare(b.l); });
         var total = counts.reduce(function (t, c) { return t + c.n; }, 0);
         var width = counts.reduce(function (w, c) { return Math.max(w, c.l.length); }, 0) + 4;
         lines.push(s.t + ' (' + total + ' total)');
@@ -829,28 +883,105 @@ function summaryText(sections, data) {
     return lines.join('\n').trim();
 }
 
-function applySummary(comp, argsText, keysByLabel, compByKey, row) {
-    const problems = [], sections = [];
-    (argsText.match(/("[^"]*"|[^,])+/g) || []).map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean).forEach(label => {
-        const keys = keysByLabel.get(label.toLowerCase()) || [];
-        if (!keys.length) return problems.push(`no field labeled "${label}"`);
-        const first = compByKey.get(keys[0]);
-        const choices = choicesOf(first);
-        if (!choices.length) return problems.push(`"${label}" has no choice list to count`);
-        sections.push({ t: first.label.toUpperCase(), keys, choices: choices.map(o => ({ l: o.label, v: o.value })) });
-    });
-    if (!sections.length) problems.push('list choice fields to summarize: =SUMMARY(Field One, Field Two)');
-    comp.calculateValue = `value = (${summaryText.toString()})(${JSON.stringify(sections)}, data);`;
-    comp.disabled = true;
-    // Monospace so the dots, counts and bars line up (Bootstrap 4 and 5 class names)
-    comp.customClass = ((comp.customClass || '') + ' text-monospace font-monospace').trim();
-    if (problems.length) compileWarnings.push({ row, text: 'Summary problem: ' + problems.join('; ') });
-    else compileHints.push({ row, text: `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')} across ${sections[0].keys.length} entr${sections[0].keys.length === 1 ? 'y' : 'ies'} (text bars, saved in the entry, updates live)` });
+// LIST BY (grouped under the first field) and LOG (one line per entry, oldest first) over aligned records
+function reportText(mode, title, fields, records, data) {
+    var show = function (f, k) {
+        var x = k ? data[k] : '';
+        if (x === undefined || x === null || x === '') return '';
+        if (f.kind === 'date') return String(x).slice(0, 10);
+        var one = function (v) { return f.map[v] !== undefined ? f.map[v] : String(v); };
+        if (Array.isArray(x)) return x.map(one).join(', ');
+        if (typeof x === 'object') return Object.keys(x).filter(function (v) { return x[v] === true; }).map(one).join(', ');
+        return one(x);
+    };
+    var pad = function (s, w) { while (s.length < w) s += ' '; return s; };
+    var rows = records.map(function (keys) { return keys.map(function (k, i) { return show(fields[i], k); }); })
+        .filter(function (r) { return r.some(function (v) { return v; }); });
+    var dateCol = -1;
+    fields.forEach(function (f, i) { if (dateCol === -1 && f.kind === 'date') dateCol = i; });
+    if (dateCol !== -1) rows.sort(function (a, b) { return (a[dateCol] || '9999').localeCompare(b[dateCol] || '9999'); });
+    var first = mode === 'listby' ? 1 : 0; // LIST BY's group field isn't repeated on each line
+    var widths = fields.map(function (f, i) { return rows.reduce(function (w, r) { return Math.max(w, r[i].length); }, 0); });
+    var line = function (r) {
+        return r.slice(first).map(function (v, i) { return i === r.length - first - 1 ? v : pad(v, widths[i + first]); }).join('  ');
+    };
+    var lines = [title.toUpperCase() + ' (' + rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies') + ')'];
+    if (!rows.length) lines.push('  Nothing recorded yet');
+    if (mode === 'log') {
+        rows.forEach(function (r, n) { lines.push(pad((n + 1) + '.', 4) + line(r)); });
+    } else {
+        var groups = {};
+        rows.forEach(function (r) { var g = r[0] || '(not entered)'; (groups[g] = groups[g] || []).push(r); });
+        Object.keys(groups).sort(function (a, b) { return groups[b].length - groups[a].length || a.localeCompare(b); })
+            .forEach(function (g) {
+                lines.push(g + ' (' + groups[g].length + ')');
+                groups[g].forEach(function (r) { lines.push('  - ' + line(r)); });
+            });
+    }
+    return lines.join('\n');
 }
 
-// Top-level "[currency: =...]" formulas (and SUMMARY), resolved once the whole form exists (labels can point anywhere)
+// Line up fields into records (one per [repeat] copy, matched by the _1, _2... copy number)
+function reportRecords(fields) {
+    if (fields.every(f => f.keys.length <= 1)) return [fields.map(f => f.keys[0] || null)];
+    const copyOf = (k) => (k.match(/_(\d+)(?:_name)?$/) || [])[1];
+    const byCopy = new Map();
+    fields.forEach((f, i) => {
+        if (f.keys.length < 2) return; // a single field outside the repeat has no copy to line up with
+        f.keys.forEach(k => {
+            const n = copyOf(k);
+            if (!n) return;
+            if (!byCopy.has(n)) byCopy.set(n, fields.map(() => null));
+            byCopy.get(n)[i] = k;
+        });
+    });
+    return [...byCopy.keys()].sort((a, b) => a - b).map(n => byCopy.get(n));
+}
+
+// Shared setup for report textareas: read-only, monospace so columns line up, hint or warning
+function finishReport(comp, code, problems, row, what) {
+    comp.calculateValue = code;
+    comp.disabled = true;
+    comp.customClass = ((comp.customClass || '') + ' text-monospace font-monospace').trim();
+    if (problems.length) compileWarnings.push({ row, text: 'Report problem: ' + problems.join('; ') });
+    else compileHints.push({ row, text: what + ' (saved in the entry, updates live)' });
+}
+
+function applySummary(comp, argsText, ctx, row) {
+    const problems = [], sections = [];
+    splitLabels(argsText).forEach(label => {
+        const f = reportField(label, ctx);
+        if (f.error) return problems.push(f.error);
+        sections.push({ t: f.t.toUpperCase(), keys: f.keys, choices: f.choices });
+    });
+    if (!sections.length) problems.push('list fields to summarize: =SUMMARY(Field One, Field Two)');
+    finishReport(comp, `value = (${summaryText.toString()})(${JSON.stringify(sections)}, data);`, problems, row,
+        `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')}`);
+}
+
+// mode 'listby': "Group: Field, Field"; mode 'log': "Field, Field"
+function applyListReport(comp, mode, argsText, ctx, row) {
+    const problems = [];
+    let labels = splitLabels(argsText);
+    if (mode === 'listby') {
+        const colon = argsText.indexOf(':');
+        if (colon === -1) problems.push('write it as LIST BY(Group Field: Field, Field)');
+        else labels = [argsText.slice(0, colon).trim().replace(/^"|"$/g, ''), ...splitLabels(argsText.slice(colon + 1))];
+    }
+    const fields = [];
+    labels.forEach(l => { const f = reportField(l, ctx); if (f.error) problems.push(f.error); else fields.push(f); });
+    if (fields.length < (mode === 'listby' ? 2 : 1)) problems.push('list the fields to show');
+    const code = `value = (${reportText.toString()})(${JSON.stringify(mode)}, ${JSON.stringify(comp.label || '')}, ` +
+        `${JSON.stringify(fields.map(f => ({ t: f.t, kind: f.kind, map: f.map })))}, ${JSON.stringify(reportRecords(fields))}, data);`;
+    finishReport(comp, code, problems, row, mode === 'listby'
+        ? `List: ${fields.slice(1).map(f => f.t).join(', ')} grouped by ${fields[0] ? fields[0].t : '?'}`
+        : `Log: one line per entry with ${fields.map(f => f.t).join(', ')}, oldest first`);
+}
+
+// Top-level "[currency: =...]" formulas (and text reports), resolved once the whole form exists (labels can point anywhere)
 function resolveFormulas(pending, rootComponents) {
     const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
+    const ctx = { keysByLabel, compByKey, rootComponents, done: new Set() };
 
     pending.forEach(({ comp, formula, row }) => {
         if (!outputKeys.has(comp.key)) {
@@ -858,7 +989,11 @@ function resolveFormulas(pending, rootComponents) {
             return;
         }
         const summary = formula.match(/^SUMMARY\((.*)\)$/i);
-        if (summary) return applySummary(comp, summary[1], keysByLabel, compByKey, row);
+        if (summary) return applySummary(comp, summary[1], ctx, row);
+        const listBy = formula.match(/^LIST\s+BY\((.*)\)$/i);
+        if (listBy) return applyListReport(comp, 'listby', listBy[1], ctx, row);
+        const log = formula.match(/^LOG\((.*)\)$/i);
+        if (log) return applyListReport(comp, 'log', log[1], ctx, row);
         const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
         applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
     });
@@ -1130,8 +1265,8 @@ function ensureLabels(list) {
 }
 
 function flagUnusedAsIs(def, row) {
-    if (def && def.asIs && !['radio', 'select'].includes(def.type)) {
-        compileWarnings.push({ row, text: '@ only applies to radio and select choices: ignored here' });
+    if (def && def.asIs && !['radio', 'select', 'selectboxes'].includes(def.type)) {
+        compileWarnings.push({ row, text: '@ only applies to radio, select and checkbox-list choices: ignored here' });
     }
 }
 

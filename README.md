@@ -57,7 +57,7 @@ Add a `!` before any component to instantly mark it as required.
 ```
 
 ### Values = Labels (The @ Modifier)
-By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]` or `[select]` to make every choice's value exactly its label. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
+By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]`, `[select]` or `[selectboxes]` to make every choice's value its label, with spaces turned into underscores (`Safety toe leather footwear` → `Safety_toe_leather_footwear`) so PDF tools that split values on spaces keep it as one item. The form still shows the normal label, and reports turn values back into labels. Avoid periods in checkbox-list labels: they become field names in the data. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
 ```text
 @[radio] Shift
 - Day Shift
@@ -66,7 +66,7 @@ By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Ad
 !@[select] Country
 +++ !@[radio]
 ```
-Flagged with ⚠ in the margin (hover for details): duplicate choices in an `@` question (same value twice), empty `- ` choices (skipped), and `@` on anything other than radio/select (ignored — `fs` selects and checkboxes included).
+Flagged with ⚠ in the margin (hover for details): duplicate choices in an `@` question (same value twice), empty `- ` choices (skipped), and `@` on anything other than radio/select/selectboxes (ignored — `fs` selects included).
 
 ### Any Form.io Setting (The ~ Lines)
 Put `~` lines under a component to set anything Form.io supports — no builder trip needed:
@@ -183,6 +183,22 @@ Inadequate housekeeping ... 1 (25%)
 ```
 *   One section per field: choices most frequent first (zeros hidden), each with its count and %.
 *   Counts **every field with that label** — so all copies of a `[repeat]` are included. Ideal with `[repeat: 10] Near Miss` for flat, platform-friendly incident logs.
+*   Fields without a choice list (e.g. a worker lookup) are counted by whatever was entered: `John Smith ..... 2 (50%)`.
+
+Two more text reports work the same way (saved in the entry, monospace, live):
+```text
+[textarea: =LIST BY(Worker Involved: Near Miss Date / Time, Near Miss Type)] Near Misses by Worker
+[textarea: =LOG(Near Miss Date / Time, Worker Involved, Near Miss Type)] Near Miss Log
+```
+```text
+NEAR MISSES BY WORKER (4 entries)        NEAR MISS LOG (4 entries)
+John Smith (2)                           1.  2026-10-03  John Smith    Electrical hazards
+  - 2026-10-03  Electrical hazards       2.  2026-10-09  Maria Garcia  Inadequate housekeeping
+  - 2026-10-17  Electrical hazards       ...
+```
+*   **`LIST BY(Group: Field, Field)`** groups entries under the first field (most entries first); **`LOG(Field, Field)`** is one numbered line per entry. Both sort by the first date field, oldest first, and line up each `[repeat]` copy's fields.
+*   **`fs` lookups show names, not IDs:** when a report uses one, the compiler adds a hidden twin per lookup that saves the name it displays (`fsworkers_1_name`), and the report reads that.
+*   To let the person filling it out choose reports, add `@[selectboxes] Show Reports` with one choice per report, `~defaultValue` to tick them all, and `~showWhen: Show Reports = …` under each report. Unticked reports are hidden and not saved.
 *   Shown in monospace so it lines up; updates live; ⚠ flags unknown labels and fields without a choice list.
 
 ### Live Charts
