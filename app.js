@@ -244,16 +244,25 @@ const PREVIEW_HTML = `<!DOCTYPE html>
 <script>
 var form = null, pending = null, busy = false, focusKey = null, el = document.getElementById('form');
 function showError(msg) { el.innerHTML = '<div class="preview-error"></div>'; el.firstChild.textContent = msg; form = null; }
-// Outline + scroll to the component the cursor is on in the shorthand
-function applyFocus() {
+// Outline the synced component; center it when it just changed, otherwise only keep it in view
+function applyFocus(center) {
     var prev = document.querySelector('.sync-focus');
     if (prev) prev.classList.remove('sync-focus');
     if (!focusKey) return;
     var target = document.querySelector('.formio-component-' + CSS.escape(focusKey));
     if (!target || target.offsetParent === null) return;
     target.classList.add('sync-focus');
-    target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    target.scrollIntoView({ block: center ? 'center' : 'nearest', behavior: 'smooth' });
 }
+// Clicking a field tells the compiler which component it is, so the other panes can center on it
+document.addEventListener('click', function (e) {
+    var comp = e.target.closest ? e.target.closest('.formio-component') : null;
+    if (!comp) return;
+    var keys = Array.prototype.slice.call(comp.classList)
+        .filter(function (c) { return c.indexOf('formio-component-') === 0; })
+        .map(function (c) { return c.slice('formio-component-'.length); });
+    parent.postMessage({ type: 'preview-click', keys: keys }, '*');
+}, true);
 function render(schema) {
     if (typeof Formio === 'undefined') return showError('Could not load the Form.io renderer. Check your internet connection.');
     if (busy) { pending = schema; return; }
@@ -265,7 +274,8 @@ function render(schema) {
 window.addEventListener('message', function (e) {
     if (e.source !== parent || !e.data) return;
     if (e.data.type === 'render') render(e.data.schema);
-    if (e.data.type === 'focus') { focusKey = e.data.key; if (!busy) applyFocus(); }
+    if (e.data.type === 'focus') { focusKey = e.data.key; if (!busy) applyFocus(e.data.center); }
+    if (e.data.type === 'scrollTo') window.scrollTo({ top: e.data.end ? document.documentElement.scrollHeight : 0, behavior: 'smooth' });
 });
 parent.postMessage({ type: 'preview-ready' }, '*');
 <\/script></body></html>`;
@@ -346,6 +356,7 @@ let usedLookupKeys = new Set(); // reset each compile; first use gets the plain 
 const repeatFirstKey = new WeakMap(); // repeat group → key of its first copy's header, for cursor sync
 const asIsComps = new WeakSet(); // radio/select marked with @: choice values = labels exactly
 let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin; reset each compile
+let formTitle = '';       // from a "# Title" line in the shorthand; '' when there isn't one
 let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
 const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
 
@@ -1130,6 +1141,7 @@ function compileShorthand() {
     usedLookupKeys = new Set();
     compileWarnings = [];
     compileHints = [];
+    formTitle = '';
     const pendingFormulas = [];
     const pendingCharts = [];
     const pendingShowWhen = [];
@@ -1173,6 +1185,12 @@ function compileShorthand() {
                 }
             }
             continue; 
+        }
+
+        if (/^#\s/.test(line)) {
+            // "# Near Miss Log": the form's name (download file name, default favorite name); not a component
+            formTitle = line.slice(1).trim();
+            continue;
         }
 
         if (line.startsWith('+++')) {
@@ -1343,7 +1361,9 @@ function compileShorthand() {
         }
     }
     const scrollTop = editor.session.getScrollTop(); // setValue would jump to the top
+    settingJson = true;
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
+    settingJson = false;
     editor.session.setScrollTop(scrollTop);
 
     // Resolve each line's component to its key in the output (repeat copies are suffixed _1, _2, ...)
@@ -1399,7 +1419,7 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 document.getElementById('btn-download').addEventListener('click', async () => {
     const jsonStr = editor.getValue();
     const first = lastComponents[0] || {};
-    const formName = String(first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
+    const formName = String(formTitle || first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
     const suggestedName = formName + '.json';
 
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -1425,7 +1445,7 @@ const favModal = document.getElementById('fav-modal');
 document.getElementById('btn-close-fav').addEventListener('click', () => favModal.classList.add('hidden'));
 
 document.getElementById('btn-save-fav').addEventListener('click', () => {
-    const name = prompt("Enter a name for this favorite session:");
+    const name = prompt("Enter a name for this favorite session:", formTitle);
     if (!name) return;
     const text = shorthand.getValue();
     if (!text.trim()) return alert("Shorthand is empty!");
@@ -1750,12 +1770,19 @@ fixCharsBtn.addEventListener('click', () => {
     shorthand.focus();
 });
 
-// --- Cursor Sync: JSON pane + Preview follow the component under the shorthand cursor ---
+// --- Cursor Sync: all three panes follow one component, centered ---
+// The source can be the shorthand cursor, a click in the Preview, or the JSON cursor (including Ctrl+F matches).
+// The other panes center on it whenever the component changes; the pane you're working in isn't moved.
 let lineKeys = [];
 let syncTimer = null;
+let jsonSyncTimer = null;
 let jsonSyncMarker = null;
+let lastSyncKey = null;
+let movingShorthand = false; // our own cursor moves shouldn't trigger a sync of their own
+let settingJson = false;     // recompiling rewrites the JSON pane; those cursor moves aren't the user's
 
 function scheduleSync() {
+    if (movingShorthand) return;
     clearTimeout(syncTimer);
     syncTimer = setTimeout(syncToCursor, 120);
 }
@@ -1763,15 +1790,85 @@ function scheduleSync() {
 function syncToCursor() {
     let row = shorthand.getCursorPosition().row;
     while (row >= 0 && !lineKeys[row]) row--; // blank or plain line: use the component above it
-    const key = row >= 0 ? lineKeys[row] : null;
-    highlightJson(key);
+    syncAll(row >= 0 ? lineKeys[row] : null, 'shorthand');
+}
+
+// Shorthand row for a component key; repeat copies (key_2, key_3...) map to the line of copy 1
+function rowForKey(key) {
+    if (!key) return -1;
+    let row = lineKeys.indexOf(key);
+    const base = key.replace(/_\d+$/, '');
+    if (row === -1) row = lineKeys.indexOf(base + '_1');
+    if (row === -1) row = lineKeys.indexOf(base);
+    return row;
+}
+
+function syncAll(key, source) {
+    const changed = key !== lastSyncKey;
+    lastSyncKey = key;
+    highlightJson(key, changed && source !== 'json');
+    if (source !== 'shorthand' && changed) {
+        const row = rowForKey(key);
+        if (row !== -1) {
+            movingShorthand = true;
+            shorthand.selection.moveTo(row, 0);
+            shorthand.scrollToLine(row, true, true, () => {});
+            setTimeout(() => { movingShorthand = false; }, 0);
+        }
+    }
     if (previewFrame && previewReady && layout.previewOpen) {
-        previewFrame.contentWindow.postMessage({ type: 'focus', key }, '*');
+        previewFrame.contentWindow.postMessage({ type: 'focus', key, center: changed && source !== 'preview' }, '*');
     }
 }
 
-// Highlight the component's whole { ... } block in the JSON pane and scroll it into view
-function highlightJson(key) {
+// The component whose { ... } block contains this JSON row (skips "validate": { } and choice objects)
+function jsonKeyAtRow(row) {
+    const lines = editor.session.getDocument().getAllLines();
+    let limit = lines[row] ? lines[row].search(/\S/) + 1 : 0; // only objects that open above, less indented, enclose the row
+    for (let r = row; r >= 0; r--) {
+        const line = lines[r], indent = line.search(/\S/);
+        if (indent < 0 || indent >= limit || !/\{$/.test(line.trim())) continue;
+        limit = indent;
+        if (line.trim() !== '{') continue;
+        const keyStart = ' '.repeat(indent + 2) + '"key": ', close = ' '.repeat(indent) + '}';
+        for (let s = r + 1; s < lines.length && !lines[s].startsWith(close); s++) {
+            if (lines[s].startsWith(keyStart)) return JSON.parse(lines[s].slice(keyStart.length).replace(/,$/, ''));
+        }
+    }
+    return null;
+}
+
+// JSON pane → others: clicking or finding (Ctrl+F) inside a component's block syncs the shorthand and Preview
+editor.selection.on('changeCursor', () => {
+    if (settingJson) return;
+    clearTimeout(jsonSyncTimer);
+    jsonSyncTimer = setTimeout(() => {
+        const key = jsonKeyAtRow(editor.getCursorPosition().row);
+        if (key) syncAll(key, 'json');
+    }, 150);
+});
+
+// Preview → others: a click on a field reports its component classes; the first one that's a known key wins
+window.addEventListener('message', (e) => {
+    if (!previewFrame || e.source !== previewFrame.contentWindow || !e.data || e.data.type !== 'preview-click') return;
+    const key = (e.data.keys || []).find(k => rowForKey(k) !== -1);
+    if (key) syncAll(key, 'preview');
+});
+
+// ⤒ / ⤓: move all three panes to the top or bottom at once (handy without Home/End keys)
+function jumpAll(toEnd) {
+    movingShorthand = true; // a jump isn't a "go to this component"
+    if (toEnd) shorthand.navigateFileEnd(); else shorthand.navigateFileStart();
+    shorthand.scrollToLine(toEnd ? shorthand.session.getLength() : 0, false, true, () => {});
+    setTimeout(() => { movingShorthand = false; }, 0);
+    editor.scrollToLine(toEnd ? editor.session.getLength() : 0, false, true, () => {}); // scroll only: moving its cursor would sync
+    if (previewFrame && previewReady && layout.previewOpen) previewFrame.contentWindow.postMessage({ type: 'scrollTo', end: toEnd }, '*');
+}
+document.getElementById('btn-jump-top').addEventListener('click', () => jumpAll(false));
+document.getElementById('btn-jump-bottom').addEventListener('click', () => jumpAll(true));
+
+// Highlight the component's whole { ... } block in the JSON pane, centering it when asked
+function highlightJson(key, center) {
     const session = editor.session;
     if (jsonSyncMarker !== null) { session.removeMarker(jsonSyncMarker); jsonSyncMarker = null; }
     if (!key) return;
@@ -1784,9 +1881,7 @@ function highlightJson(key) {
     while (start > 0 && lines[start] !== indent + '{') start--;
     while (end < lines.length - 1 && lines[end] !== indent + '}' && lines[end] !== indent + '},') end++;
     jsonSyncMarker = session.addMarker(new Range(start, 0, end, Infinity), 'sync-line', 'fullLine');
-    if (start < editor.getFirstVisibleRow() || start > editor.getLastVisibleRow() - 2) {
-        editor.scrollToLine(Math.max(0, start - 2), false, true, () => {});
-    }
+    if (center) editor.scrollToLine(start, true, true, () => {});
 }
 
 shorthand.selection.on('changeCursor', scheduleSync);

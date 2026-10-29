@@ -10,7 +10,9 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 
     Arrow keys move through the menu; Esc dismisses it; typing `]` or a space closes it, so typing tags by hand (`[textfield] Name`) works as always.
 *   **Every Form.io Setting, From the Keyboard:** Type `~` on the line under any component to browse all of its Form.io settings with explanations, pick one, and it's written into the JSON. A built-in way to learn what each setting does, too.
-*   **Follows Your Cursor:** Wherever your cursor is in the shorthand, the JSON pane highlights that component and scrolls to it, and the Preview outlines and scrolls to it too — no hunting through the other panes.
+*   **Follows Your Cursor — in Any Pane:** Put your cursor on a shorthand line, click a field in the Preview, or click (or find) inside a component in the JSON, and the other two panes jump to that same component and **center** it — highlighted in the JSON, outlined in the Preview, cursor on its shorthand line. The pane you're working in stays put.
+*   **Top / Bottom of Everything:** The ⤒ and ⤓ icons in the shorthand toolbar move all three panes to the top or bottom at once — handy on keyboards without Home/End keys.
+*   **Find (Ctrl+F) in the Editors:** Click into the shorthand or the JSON and press Ctrl+F for the editor's own find bar — it searches the whole text (not just what's on screen, unlike the browser's find), highlights every match, and steps through them with Enter. The shorthand's bar also does Replace / Replace All. Each match in the JSON syncs the other panes to its component.
 *   **Special Character Check:** Curly quotes, em/en dashes, ellipses, non-breaking and invisible spaces (common when pasting from Word or PDFs) get garbled by Form.io. They're underlined in red with a ⚠ in the margin (hover it to see what they are), and the header shows a count with a **Fix** button that swaps them all for plain versions.
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
@@ -23,6 +25,13 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 ---
 
 ## 🛠️ Shorthand Syntax Guide
+
+### Form Name
+A line starting with `# ` names the form. It isn't a component (nothing is added to the JSON); it's used as the download file name and as the default name when saving a favorite.
+```text
+# Near Miss Log - Q4
+```
+Without one, the download is named after the first component.
 
 ### Basic Inputs
 Create inputs by wrapping the component type in brackets, followed by the label.
