@@ -117,6 +117,10 @@ button i { margin-right: 5px; }
 /* Ace markers: special characters (red underline) and the synced component (blue band) */
 .ace_marker-layer .bad-char { position: absolute; background: rgba(248, 81, 73, 0.25); border-bottom: 2px solid var(--danger); }
 .ace_marker-layer .sync-line { position: absolute; background: rgba(0, 122, 204, 0.15); }
+/* Ace draws find matches and copies of a selected word with the same highlighter, so the color follows the find bar:
+   closed → other copies of a selected word, orchid pink-purple; open (Ctrl+F) → find matches, bright yellow */
+.ace_marker-layer .ace_selected-word { background: rgba(218, 112, 214, 0.55) !important; border: 1px solid #c24fc2 !important; }
+.ace_editor:has(.ace_search:not([style*="display: none"])) .ace_marker-layer .ace_selected-word { background: rgba(255, 235, 0, 0.65) !important; border: 1px solid #f5c400 !important; }
 .pane-toolbar .char-warning { margin-left: auto; color: var(--danger); font-size: 0.78rem; white-space: nowrap; }
 
 /* Modal */

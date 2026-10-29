@@ -294,6 +294,9 @@ function previewSchema() {
             c.dataSrc = 'values';
             c.data = { values: opts.map(o => ({ label: o, value: o })) };
         }
+        // File fields get in-browser storage in the Preview only (the app sets real storage), so there's no
+        // "No storage has been set" message and uploads can be tried out
+        if (c.type === 'file' && !c.storage) c.storage = 'base64';
         childListsOf(c).forEach(addDemo);
     });
     addDemo(components);
@@ -943,26 +946,14 @@ function insertAfter(target, newComp, rootComponents) {
     place(rootComponents);
 }
 
-// Shared setup for report textareas. The textarea holds the DATA (calculated, saved, exported) but is hidden;
-// an HTML element right after it SHOWS the saved text in <pre>, so line breaks and alignment survive in
-// HTML-based PDFs that collapse text-box line breaks. The display hides itself when the report is empty
-// (e.g. unticked in a report picker, which clears the hidden textarea).
-function finishReport(comp, code, problems, row, what, ctx) {
-    // Conditionally hidden (e.g. unticked in a report picker) → empty, so nothing is saved and the display hides.
-    // (instance.visible reflects conditions only; the static "hidden" below doesn't count.)
+// Shared setup for report textareas: one visible, read-only, monospace text box that is also the saved record.
+// When conditionally hidden (e.g. unticked in a report picker) it's emptied, so an unticked report isn't saved.
+function finishReport(comp, code, problems, row, what) {
     comp.calculateValue = 'if (instance && instance.visible === false) { value = ""; } else { ' + code + ' }';
     comp.disabled = true;
-    comp.hidden = true;
-    comp.clearOnHide = true;
-    insertAfter(comp, {
-        label: (comp.label || 'Report') + ' (display)', key: comp.key + '_display', type: 'htmlelement', tag: 'div',
-        input: false, tableView: false, refreshOnChange: true,
-        customConditional: "show = !!data['" + comp.key + "'];",
-        content: '<div style="font-weight:600;margin-bottom:4px;">' + escapeHtml(comp.label || '') + '</div>' +
-            '<pre style="white-space:pre-wrap;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;margin:0;">{{ data[\'' + comp.key + '\'] }}</pre>'
-    }, ctx.rootComponents);
+    comp.customClass = ((comp.customClass || '') + ' text-monospace font-monospace').trim();
     if (problems.length) compileWarnings.push({ row, text: 'Report problem: ' + problems.join('; ') });
-    else compileHints.push({ row, text: what + ' (saved in the entry; shown as preformatted text so line breaks survive PDFs; updates live)' });
+    else compileHints.push({ row, text: what + ' (saved in the entry, updates live)' });
 }
 
 function applySummary(comp, argsText, ctx, row) {
