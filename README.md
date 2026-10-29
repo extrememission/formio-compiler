@@ -57,7 +57,7 @@ Add a `!` before any component to instantly mark it as required.
 ```
 
 ### Values = Labels (The @ Modifier)
-By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]`, `[select]` or `[selectboxes]` to make every choice's value its label, with spaces turned into underscores (`Safety toe leather footwear` → `Safety_toe_leather_footwear`) so PDF tools that split values on spaces keep it as one item. The form still shows the normal label, and reports turn values back into labels. Avoid periods in checkbox-list labels: they become field names in the data. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
+By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]`, `[select]` or `[selectboxes]` to make every choice's value its label, with its spaces saved as **non-breaking spaces** (`Safety toe leather footwear` in the JSON). They look exactly like normal spaces, but PDF tools that split values on spaces — or turn `_` and `-` into spaces first — keep it as one item. In `~defaultValue` just write the labels (`{"Summary Counts": true}`); the compiler converts them to the real values. The form still shows the normal label, and reports turn values back into labels. Avoid periods in checkbox-list labels: they become field names in the data. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
 ```text
 @[radio] Shift
 - Day Shift
@@ -199,7 +199,7 @@ John Smith (2)                           1.  2026-10-03  John Smith    Electrica
 *   **`LIST BY(Group: Field, Field)`** groups entries under the first field (most entries first); **`LOG(Field, Field)`** is one numbered line per entry. Both sort by the first date field, oldest first, and line up each `[repeat]` copy's fields.
 *   **Line breaks survive PDFs:** each report's text box holds the data (calculated, saved, exported) but is hidden; right after it, an HTML element shows the same saved text in a monospace `<pre>` block. HTML-based PDFs that squash text-box line breaks into one line print it with its lines and columns intact. The display hides itself when its report is empty (e.g. unticked).
 *   **`fs` lookups show names, not IDs:** when a report uses one, the compiler adds a hidden twin per lookup that saves the name it displays (`fsworkers_1_name`), and the report reads that.
-*   To let the person filling it out choose reports, add `@[selectboxes] Show Reports` with one choice per report, `~defaultValue` to tick them all, and `~showWhen: Show Reports = …` under each report. Unticked reports are hidden and not saved.
+*   To let the person filling it out choose reports, add `@[selectboxes] Show Reports` with one choice per report, `~defaultValue: {"Summary Counts": true, ...}` (by label) to tick them all, and `~showWhen: Show Reports = …` under each report. Unticked reports are hidden and not saved.
 *   Shown in monospace so it lines up; updates live; ⚠ flags unknown labels and fields without a choice list.
 
 ### Live Charts

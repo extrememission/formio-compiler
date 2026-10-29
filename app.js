@@ -425,9 +425,9 @@ function addRowFormula(grid, text, row) {
 }
 
 // @ radio/select keep the label as the value; everything else gets a unique smart key
-// @ values are the label with spaces → underscores ("Safety_toe_leather_footwear"): readable, and PDF/report
-// tools that split values on spaces keep it as one item. Everything else gets a unique smart key.
-const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, '_');
+// @ values are the label with its spaces as NON-BREAKING spaces (U+00A0): they look identical, but PDF tools that
+// split values on spaces (or turn _ and - into spaces first) keep it as one item. Everything else gets a smart key.
+const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, ' ');
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? asIsValue(opt) : generateSmartKey(opt);
 
 function generateSmartKey(label) {
@@ -818,9 +818,10 @@ function ensureNameCopy(lookup, rootComponents, done) {
     if (done.has(nameKey)) return nameKey;
     done.add(nameKey);
     const twin = { label: lookup.label + ' (name)', key: nameKey, type: 'hidden', input: true, tableView: false,
-        // getView returns display HTML (e.g. <span>John Smith</span>): keep just the text
+        // Only when a worker is actually picked (an empty lookup can still display a placeholder, which would make
+        // unused [repeat] copies look like entries). getView returns display HTML (<span>John Smith</span>): keep the text.
         calculateValue: "var w = instance.root.getComponent('" + lookup.key + "'); var box = document.createElement('div'); " +
-            "box.innerHTML = w ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();" };
+            "box.innerHTML = w && !w.isEmpty(w.dataValue) ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();" };
     insertAfter(lookup, twin, rootComponents);
     return nameKey;
 }
@@ -1259,6 +1260,26 @@ function resolveShowWhen(pending, rootComponents) {
     });
 }
 
+// ~defaultValue on choice fields may name choices by label ("Summary Counts") or the old underscore spelling;
+// convert each to the choice's real value (e.g. with @ non-breaking spaces) so nobody has to type invisible characters.
+function normalizeChoiceDefaults(list) {
+    (list || []).forEach(c => {
+        const choices = choicesOf(c);
+        if (choices.length && c.defaultValue !== undefined && c.defaultValue !== '') {
+            const norm = (s) => String(s).replace(/[\s_ ]+/g, ' ').trim().toLowerCase();
+            const toValue = (v) => { const hit = choices.find(o => norm(o.label) === norm(v) || norm(o.value) === norm(v)); return hit ? hit.value : v; };
+            if (c.defaultValue && typeof c.defaultValue === 'object' && !Array.isArray(c.defaultValue)) {
+                c.defaultValue = Object.fromEntries(Object.entries(c.defaultValue).map(([k, on]) => [toValue(k), on]));
+            } else if (Array.isArray(c.defaultValue)) {
+                c.defaultValue = c.defaultValue.map(toValue);
+            } else {
+                c.defaultValue = toValue(c.defaultValue);
+            }
+        }
+        childListsOf(c).forEach(normalizeChoiceDefaults);
+    });
+}
+
 // Safety pass: every component gets a label, like the Form.io builder gives them.
 // Some platform viewers lowercase every component's label and crash on one without (blank entry card).
 // Only fills labels that are missing entirely; Content/HTML never display their label.
@@ -1492,6 +1513,7 @@ function compileShorthand() {
     resolveCharts(pendingCharts, rootComponents);
     resolveShowWhen(pendingShowWhen, rootComponents);
     settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
+    normalizeChoiceDefaults(rootComponents);
     ensureLabels(rootComponents);
 
     // Components mode: array, pasted over a "components": [ ]
