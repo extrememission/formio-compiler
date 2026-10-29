@@ -818,12 +818,7 @@ function ensureNameCopy(lookup, rootComponents, done) {
         // getView returns display HTML (e.g. <span>John Smith</span>): keep just the text
         calculateValue: "var w = instance.root.getComponent('" + lookup.key + "'); var box = document.createElement('div'); " +
             "box.innerHTML = w ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();" };
-    const place = (list) => {
-        const i = list.indexOf(lookup);
-        if (i !== -1) { list.splice(i + 1, 0, twin); return true; }
-        return list.some(c => childListsOf(c).some(place));
-    };
-    place(rootComponents);
+    insertAfter(lookup, twin, rootComponents);
     return nameKey;
 }
 
@@ -938,13 +933,36 @@ function reportRecords(fields) {
     return [...byCopy.keys()].sort((a, b) => a - b).map(n => byCopy.get(n));
 }
 
-// Shared setup for report textareas: read-only, monospace so columns line up, hint or warning
-function finishReport(comp, code, problems, row, what) {
-    comp.calculateValue = code;
+// Puts a new component right after an existing one, wherever it sits in the form
+function insertAfter(target, newComp, rootComponents) {
+    const place = (list) => {
+        const i = list.indexOf(target);
+        if (i !== -1) { list.splice(i + 1, 0, newComp); return true; }
+        return list.some(c => childListsOf(c).some(place));
+    };
+    place(rootComponents);
+}
+
+// Shared setup for report textareas. The textarea holds the DATA (calculated, saved, exported) but is hidden;
+// an HTML element right after it SHOWS the saved text in <pre>, so line breaks and alignment survive in
+// HTML-based PDFs that collapse text-box line breaks. The display hides itself when the report is empty
+// (e.g. unticked in a report picker, which clears the hidden textarea).
+function finishReport(comp, code, problems, row, what, ctx) {
+    // Conditionally hidden (e.g. unticked in a report picker) → empty, so nothing is saved and the display hides.
+    // (instance.visible reflects conditions only; the static "hidden" below doesn't count.)
+    comp.calculateValue = 'if (instance && instance.visible === false) { value = ""; } else { ' + code + ' }';
     comp.disabled = true;
-    comp.customClass = ((comp.customClass || '') + ' text-monospace font-monospace').trim();
+    comp.hidden = true;
+    comp.clearOnHide = true;
+    insertAfter(comp, {
+        label: (comp.label || 'Report') + ' (display)', key: comp.key + '_display', type: 'htmlelement', tag: 'div',
+        input: false, tableView: false, refreshOnChange: true,
+        customConditional: "show = !!data['" + comp.key + "'];",
+        content: '<div style="font-weight:600;margin-bottom:4px;">' + escapeHtml(comp.label || '') + '</div>' +
+            '<pre style="white-space:pre-wrap;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;margin:0;">{{ data[\'' + comp.key + '\'] }}</pre>'
+    }, ctx.rootComponents);
     if (problems.length) compileWarnings.push({ row, text: 'Report problem: ' + problems.join('; ') });
-    else compileHints.push({ row, text: what + ' (saved in the entry, updates live)' });
+    else compileHints.push({ row, text: what + ' (saved in the entry; shown as preformatted text so line breaks survive PDFs; updates live)' });
 }
 
 function applySummary(comp, argsText, ctx, row) {
@@ -956,7 +974,7 @@ function applySummary(comp, argsText, ctx, row) {
     });
     if (!sections.length) problems.push('list fields to summarize: =SUMMARY(Field One, Field Two)');
     finishReport(comp, `value = (${summaryText.toString()})(${JSON.stringify(sections)}, data);`, problems, row,
-        `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')}`);
+        `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')}`, ctx);
 }
 
 // mode 'listby': "Group: Field, Field"; mode 'log': "Field, Field"
@@ -975,7 +993,7 @@ function applyListReport(comp, mode, argsText, ctx, row) {
         `${JSON.stringify(fields.map(f => ({ t: f.t, kind: f.kind, map: f.map })))}, ${JSON.stringify(reportRecords(fields))}, data);`;
     finishReport(comp, code, problems, row, mode === 'listby'
         ? `List: ${fields.slice(1).map(f => f.t).join(', ')} grouped by ${fields[0] ? fields[0].t : '?'}`
-        : `Log: one line per entry with ${fields.map(f => f.t).join(', ')}, oldest first`);
+        : `Log: one line per entry with ${fields.map(f => f.t).join(', ')}, oldest first`, ctx);
 }
 
 // Top-level "[currency: =...]" formulas (and text reports), resolved once the whole form exists (labels can point anywhere)

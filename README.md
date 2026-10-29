@@ -197,6 +197,7 @@ John Smith (2)                           1.  2026-10-03  John Smith    Electrica
   - 2026-10-17  Electrical hazards       ...
 ```
 *   **`LIST BY(Group: Field, Field)`** groups entries under the first field (most entries first); **`LOG(Field, Field)`** is one numbered line per entry. Both sort by the first date field, oldest first, and line up each `[repeat]` copy's fields.
+*   **Line breaks survive PDFs:** each report's text box holds the data (calculated, saved, exported) but is hidden; right after it, an HTML element shows the same saved text in a monospace `<pre>` block. HTML-based PDFs that squash text-box line breaks into one line print it with its lines and columns intact. The display hides itself when its report is empty (e.g. unticked).
 *   **`fs` lookups show names, not IDs:** when a report uses one, the compiler adds a hidden twin per lookup that saves the name it displays (`fsworkers_1_name`), and the report reads that.
 *   To let the person filling it out choose reports, add `@[selectboxes] Show Reports` with one choice per report, `~defaultValue` to tick them all, and `~showWhen: Show Reports = …` under each report. Unticked reports are hidden and not saved.
 *   Shown in monospace so it lines up; updates live; ⚠ flags unknown labels and fields without a choice list.
