@@ -300,7 +300,8 @@ function previewSchema() {
         childListsOf(c).forEach(addDemo);
     });
     addDemo(components);
-    return { display: 'form', components };
+    // With "=== Page:" lines the top level is the pages, shown as a real wizard (Next / Previous)
+    return { display: outputPages.length ? 'wizard' : 'form', components };
 }
 
 function sendPreview() {
@@ -1300,7 +1301,20 @@ function flagUnusedAsIs(def, row) {
     }
 }
 
+// Safety net: if any line throws, mark it with a ✖ and keep the last good JSON instead of failing silently
+let compilingRow = 0;
 function compileShorthand() {
+    try {
+        compileShorthandUnsafe();
+    } catch (err) {
+        console.error(err);
+        const existing = shorthand.session.getAnnotations().filter(a => a.type !== 'error');
+        shorthand.session.setAnnotations(existing.concat([{ row: compilingRow, column: 0, type: 'error',
+            text: 'The compiler stopped at this line (' + err.message + '). The JSON shows the last version that compiled. Fix this line or tell Claude.' }]));
+    }
+}
+
+function compileShorthandUnsafe() {
     const lines = shorthand.session.getDocument().getAllLines();
     const lineComps = []; // source row → component it produced (for cursor sync)
     usedLookupKeys = new Set();
@@ -1335,21 +1349,23 @@ function compileShorthand() {
         else if (parent.type === 'table') addToTable(parent, comp, currentRow);
         else parent.components.push(comp);
     };
+    const pages = []; // wizard pages from "=== Page: Name" lines
+    // Close the innermost container; a [repeat] becomes its copies here
+    const popContainer = () => {
+        const popped = containerStack.pop();
+        if (popped.type === 'repeat') unrollRepeatGroup(popped).forEach(c => pushComponent(c));
+    };
 
     for (let i = 0; i < lines.length; i++) {
         currentRow = i;
+        compilingRow = i;
         let line = lines[i].trim();
         if (!line) {
             lastFieldComponent = null;
             settingsTarget = null;
-            if (containerStack.length > 0) {
-                let popped = containerStack.pop();
-                if (popped.type === 'repeat') {
-                    let unrolled = unrollRepeatGroup(popped);
-                    unrolled.forEach(c => pushComponent(c));
-                }
-            }
-            continue; 
+            // A blank line closes one container, but never a wizard page (only the next "=== Page:" does)
+            if (containerStack.length > 0 && !pages.includes(containerStack[containerStack.length - 1])) popContainer();
+            continue;
         }
 
         if (/^#\s/.test(line)) {
@@ -1358,10 +1374,29 @@ function compileShorthand() {
             continue;
         }
 
+        const pageMatch = line.match(/^===\s*(?:Page\s*:)?\s*(.*)$/i);
+        if (pageMatch) {
+            // "=== Page: Details": a wizard page. Closes everything still open; its contents go in until the next page
+            if (inBulkMode) { applyBulkSettings(bulkDef); inBulkMode = false; bulkDef = null; }
+            while (containerStack.length > 0) popContainer();
+            const title = pageMatch[1].trim() || 'Page ' + (pages.length + 1);
+            const page = { title, label: title, key: generateSmartKey(title), type: 'panel', input: false, tableView: false, components: [] };
+            pages.push(page);
+            rootComponents.push(page);
+            containerStack.push(page);
+            lineComps[i] = null;
+            lastFieldComponent = null;
+            settingsTarget = null;
+            continue;
+        }
+
         if (line.startsWith('+++')) {
             lastFieldComponent = null;
             if (inBulkMode) { applyBulkSettings(bulkDef); inBulkMode = false; bulkDef = null; settingsTarget = null; }
-            else {
+            else if (!parseComponentDef(line.substring(3).trim())) {
+                // A lone "+++" with no block open (often the opening line was mistyped): don't start a typeless block
+                compileWarnings.push({ row: i, text: 'A Bulk block must start with a type, e.g. "+++ ![radio]". This "+++" has none and no block is open, so it was skipped. Check the line that should open this block.' });
+            } else {
                 inBulkMode = true;
                 bulkDef = parseComponentDef(line.substring(3).trim());
                 bulkDef.markdownChoices = [];
@@ -1502,12 +1537,12 @@ function compileShorthand() {
     }
     if (inBulkMode) applyBulkSettings(bulkDef); // block left open at the end
 
-    while (containerStack.length > 0) {
-        let popped = containerStack.pop();
-        if (popped.type === 'repeat') {
-            let unrolled = unrollRepeatGroup(popped);
-            unrolled.forEach(c => pushComponent(c));
-        }
+    while (containerStack.length > 0) popContainer();
+    if (pages.length) {
+        // Anything before the first page (e.g. [print]) goes at the top of page 1
+        const loose = rootComponents.filter(c => !pages.includes(c));
+        if (loose.length) pages[0].components.unshift(...loose);
+        rootComponents = pages.slice();
     }
     resolveFormulas(pendingFormulas, rootComponents);
     resolveCharts(pendingCharts, rootComponents);
@@ -1516,21 +1551,10 @@ function compileShorthand() {
     normalizeChoiceDefaults(rootComponents);
     ensureLabels(rootComponents);
 
-    // Components mode: array, pasted over a "components": [ ]
-    // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
-    let finalOutput = rootComponents;
-    if (outputMode === 'component') {
-        if (rootComponents.length === 1) {
-            finalOutput = rootComponents[0];
-        } else {
-            finalOutput = { title: 'Panel', label: 'Panel', key: generateSmartKey('Panel'), type: 'panel', theme: 'primary', input: false, tableView: false, components: rootComponents };
-        }
-    }
-    const scrollTop = editor.session.getScrollTop(); // setValue would jump to the top
-    settingJson = true;
-    editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
-    settingJson = false;
-    editor.session.setScrollTop(scrollTop);
+    outputPages = pages;
+    if (selectedPage >= pages.length) selectedPage = 0;
+    lastComponents = rootComponents;
+    renderOutput();
 
     // Resolve each line's component to its key in the output (repeat copies are suffixed _1, _2, ...)
     const outputKeys = new Set();
@@ -1541,11 +1565,48 @@ function compileShorthand() {
         : outputKeys.has(c.key + '_1') ? c.key + '_1'
         : repeatFirstKey.get(c) || null);
 
-    lastComponents = rootComponents;
     schedulePreview();
     checkBadChars();
     scheduleSync();
 }
+
+// --- JSON output: the whole form, or one wizard page ---
+// Pages come from one compile, so switching pages (or the Wrapper) only re-renders: keys stay the same across
+// pages, and formulas/reports that span pages keep pointing at the keys you paste.
+let outputPages = [];
+let selectedPage = 0;
+const pagePicker = document.getElementById('page-picker');
+
+function renderOutput() {
+    const list = outputPages.length ? outputPages[selectedPage].components : lastComponents;
+    // Components mode: array, pasted over a "components": [ ]
+    // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
+    let finalOutput = list;
+    if (outputMode === 'component') {
+        finalOutput = list.length === 1 ? list[0]
+            : { title: 'Panel', label: 'Panel', key: generateSmartKey('Panel'), type: 'panel', theme: 'primary', input: false, tableView: false, components: list };
+    }
+    const scrollTop = editor.session.getScrollTop(); // setValue would jump to the top
+    settingJson = true;
+    editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
+    settingJson = false;
+    editor.session.setScrollTop(scrollTop);
+
+    pagePicker.hidden = !outputPages.length;
+    const options = outputPages.map((p, i) => `Page ${i + 1}: ${p.title}`);
+    if ([...pagePicker.options].map(o => o.text).join('\n') !== options.join('\n')) {
+        pagePicker.innerHTML = '';
+        options.forEach((text, i) => pagePicker.add(new Option(text, i)));
+    }
+    pagePicker.value = String(selectedPage);
+}
+
+pagePicker.addEventListener('change', () => {
+    selectedPage = Number(pagePicker.value);
+    lastSyncKey = null;
+    renderOutput();
+    scheduleSync();
+});
 
 // --- Wrapper Checkbox (checked = one { } component, unchecked = [ ] components array) ---
 let outputMode = 'components';
@@ -1556,7 +1617,7 @@ wrapperCheck.checked = outputMode === 'component';
 wrapperCheck.addEventListener('change', () => {
     outputMode = wrapperCheck.checked ? 'component' : 'components';
     try { localStorage.setItem('outputMode', outputMode); } catch (e) {}
-    compileShorthand();
+    renderOutput(); // same build, new shape: keys don't change
 });
 
 // --- Listeners ---
@@ -1586,7 +1647,8 @@ document.getElementById('btn-download').addEventListener('click', async () => {
     const jsonStr = editor.getValue();
     const first = lastComponents[0] || {};
     const formName = String(formTitle || first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
-    const suggestedName = formName + '.json';
+    const pageName = outputPages.length ? ' - Page ' + (selectedPage + 1) + ' ' + outputPages[selectedPage].title.replace(/[\\/:*?"<>|]+/g, '-') : '';
+    const suggestedName = formName + pageName + '.json';
 
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
@@ -1972,6 +2034,12 @@ function rowForKey(key) {
 function syncAll(key, source) {
     const changed = key !== lastSyncKey;
     lastSyncKey = key;
+    // Wizard: show the JSON of the page that holds this component
+    if (key && outputPages.length && changed) {
+        const holds = (list) => list.some(c => c.key === key || childListsOf(c).some(holds));
+        const page = outputPages.findIndex(p => holds(p.components));
+        if (page !== -1 && page !== selectedPage) { selectedPage = page; renderOutput(); }
+    }
     highlightJson(key, changed && source !== 'json');
     if (source !== 'shorthand' && changed) {
         const row = rowForKey(key);

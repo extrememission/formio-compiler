@@ -81,6 +81,8 @@ body {
 .btn-mini { background: transparent; color: var(--text-muted); padding: 2px 6px; border-radius: 4px; }
 .btn-mini:hover { background: var(--bg-surface-hover); color: var(--text-main); }
 .btn-mini i { margin: 0; }
+.page-picker { max-width: 170px; font-size: 0.78rem; padding: 3px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text-main); }
+.page-picker[hidden] { display: none; }
 .wrapper-check { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
 .wrapper-check:hover { color: var(--text-main); }
 .wrapper-check input { margin: 0; accent-color: var(--accent); cursor: pointer; }
