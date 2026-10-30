@@ -42,8 +42,8 @@ body {
 
 /* Main Layout & Resizer */
 .app-layout { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
-.left-pane { width: 450px; min-width: 350px; display: flex; flex-direction: column; background: var(--bg-surface); }
-.editor-panel { flex: 1; min-width: 300px; display: flex; flex-direction: column; background: var(--bg-main); }
+.left-pane { width: 450px; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-surface); }
+.editor-panel { flex: 1; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-main); }
 .resizer {
     width: 3px; background: var(--border); cursor: col-resize; transition: background 0.2s;
     display: flex; justify-content: center; align-items: center; z-index: 10;
@@ -52,7 +52,7 @@ body {
 .resizer.hidden { display: none; }
 
 /* Preview Column */
-.preview-pane { flex: none; min-width: 250px; display: flex; flex-direction: column; background: var(--bg-surface); }
+.preview-pane { flex: none; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-surface); }
 .preview-pane.collapsed { width: 36px; min-width: 36px; border-left: 1px solid var(--border); }
 .preview-pane.collapsed .preview-body { display: none; }
 .preview-pane:not(.collapsed) .preview-strip { display: none; }

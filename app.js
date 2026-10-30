@@ -163,6 +163,7 @@ const saveLayout = () => { try { localStorage.setItem('layout', JSON.stringify(l
 const leftPane = document.getElementById('left-pane');
 const previewPane = document.getElementById('preview-pane');
 const previewResizer = document.getElementById('preview-resizer');
+const MIN_PANE = 120; // narrowest a pane can be dragged (matches min-width in global.css)
 
 function applyLayout() {
     if (layout.leftWidth) {
@@ -172,9 +173,9 @@ function applyLayout() {
     previewPane.classList.toggle('collapsed', !layout.previewOpen);
     previewResizer.classList.toggle('hidden', !layout.previewOpen);
     if (layout.previewOpen) {
-        // Keep at least 300px for the JSON pane if the window got smaller since last visit
-        const maxPreview = window.innerWidth - leftPane.offsetWidth - 300;
-        previewPane.style.width = Math.max(250, Math.min(layout.previewWidth, maxPreview)) + 'px';
+        // Keep at least MIN_PANE for the JSON pane if the window got smaller since last visit
+        const maxPreview = window.innerWidth - leftPane.offsetWidth - MIN_PANE;
+        previewPane.style.width = Math.max(MIN_PANE, Math.min(layout.previewWidth, maxPreview)) + 'px';
     } else {
         previewPane.style.width = '';
     }
@@ -207,7 +208,7 @@ function makeResizer(resizer, onMove) {
 }
 
 makeResizer(document.getElementById('drag-resizer'), (x) => {
-    if (x > 300 && x < window.innerWidth - previewPane.offsetWidth - 300) {
+    if (x > MIN_PANE && x < window.innerWidth - previewPane.offsetWidth - MIN_PANE) {
         layout.leftWidth = x;
         leftPane.style.width = x + 'px';
         leftPane.style.flex = 'none';
@@ -216,7 +217,7 @@ makeResizer(document.getElementById('drag-resizer'), (x) => {
 
 makeResizer(previewResizer, (x) => {
     const w = window.innerWidth - x;
-    if (w > 250 && x > leftPane.offsetWidth + 300) {
+    if (w > MIN_PANE && x > leftPane.offsetWidth + MIN_PANE) {
         layout.previewWidth = w;
         previewPane.style.width = w + 'px';
     }
