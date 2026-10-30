@@ -37,9 +37,8 @@ Split a form into wizard pages with `=== Page: Name` lines:
 ```
 *   Everything until the next `===` line belongs to that page (blank lines inside a page close containers, never the page). Anything before the first page goes at the top of page 1.
 *   Formulas, reports, charts and showWhen see the **whole form**, so a total on page 3 can use fields from page 1.
-*   The JSON pane gets a **page picker**: pick a page, copy it, and paste it into that page's `"components": [ ]` in your app's wizard. Downloads are named per page.
-*   Switching pages doesn't recompile, so all pages share one set of keys — copy every page from the same build (don't edit the shorthand in between), or cross-page formulas could point at keys you didn't paste.
-*   The Preview shows a real wizard with Next / Previous.
+*   The JSON pane always shows the **whole form**: each page is a top-level panel titled with its name. Click a line in any pane to jump to that spot in the others.
+*   The Preview shows all pages stacked as panels.
 
 ### Form Name
 A line starting with `# ` names the form. It isn't a component (nothing is added to the JSON); it's used as the download file name and as the default name when saving a favorite.

@@ -300,8 +300,7 @@ function previewSchema() {
         childListsOf(c).forEach(addDemo);
     });
     addDemo(components);
-    // With "=== Page:" lines the top level is the pages, shown as a real wizard (Next / Previous)
-    return { display: outputPages.length ? 'wizard' : 'form', components };
+    return { display: 'form', components };
 }
 
 function sendPreview() {
@@ -1551,8 +1550,6 @@ function compileShorthandUnsafe() {
     normalizeChoiceDefaults(rootComponents);
     ensureLabels(rootComponents);
 
-    outputPages = pages;
-    if (selectedPage >= pages.length) selectedPage = 0;
     lastComponents = rootComponents;
     renderOutput();
 
@@ -1570,15 +1567,9 @@ function compileShorthandUnsafe() {
     scheduleSync();
 }
 
-// --- JSON output: the whole form, or one wizard page ---
-// Pages come from one compile, so switching pages (or the Wrapper) only re-renders: keys stay the same across
-// pages, and formulas/reports that span pages keep pointing at the keys you paste.
-let outputPages = [];
-let selectedPage = 0;
-const pagePicker = document.getElementById('page-picker');
-
+// --- JSON output: always the whole form (wizard pages are its top-level panels) ---
 function renderOutput() {
-    const list = outputPages.length ? outputPages[selectedPage].components : lastComponents;
+    const list = lastComponents;
     // Components mode: array, pasted over a "components": [ ]
     // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
     let finalOutput = list;
@@ -1591,22 +1582,7 @@ function renderOutput() {
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
     settingJson = false;
     editor.session.setScrollTop(scrollTop);
-
-    pagePicker.hidden = !outputPages.length;
-    const options = outputPages.map((p, i) => `Page ${i + 1}: ${p.title}`);
-    if ([...pagePicker.options].map(o => o.text).join('\n') !== options.join('\n')) {
-        pagePicker.innerHTML = '';
-        options.forEach((text, i) => pagePicker.add(new Option(text, i)));
-    }
-    pagePicker.value = String(selectedPage);
 }
-
-pagePicker.addEventListener('change', () => {
-    selectedPage = Number(pagePicker.value);
-    lastSyncKey = null;
-    renderOutput();
-    scheduleSync();
-});
 
 // --- Wrapper Checkbox (checked = one { } component, unchecked = [ ] components array) ---
 let outputMode = 'components';
@@ -1647,8 +1623,7 @@ document.getElementById('btn-download').addEventListener('click', async () => {
     const jsonStr = editor.getValue();
     const first = lastComponents[0] || {};
     const formName = String(formTitle || first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
-    const pageName = outputPages.length ? ' - Page ' + (selectedPage + 1) + ' ' + outputPages[selectedPage].title.replace(/[\\/:*?"<>|]+/g, '-') : '';
-    const suggestedName = formName + pageName + '.json';
+    const suggestedName = formName + '.json';
 
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
         || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
@@ -2034,12 +2009,6 @@ function rowForKey(key) {
 function syncAll(key, source) {
     const changed = key !== lastSyncKey;
     lastSyncKey = key;
-    // Wizard: show the JSON of the page that holds this component
-    if (key && outputPages.length && changed) {
-        const holds = (list) => list.some(c => c.key === key || childListsOf(c).some(holds));
-        const page = outputPages.findIndex(p => holds(p.components));
-        if (page !== -1 && page !== selectedPage) { selectedPage = page; renderOutput(); }
-    }
     highlightJson(key, changed && source !== 'json');
     if (source !== 'shorthand' && changed) {
         const row = rowForKey(key);
