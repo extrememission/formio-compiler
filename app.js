@@ -2124,7 +2124,8 @@ function armPage(page) {
     if (!/\[\],?$/.test(lines[start])) while (end < lines.length - 1 && lines[end] !== indent + ']' && lines[end] !== indent + '],') end++;
     if (start >= lines.length) return;
     armedPage = page;
-    pageMarker = session.addMarker(new Range(start, 0, end, Infinity), 'page-copy', 'fullLine');
+    // Green from the [ to the ] only: that's exactly what Copy takes
+    pageMarker = session.addMarker(new Range(start, lines[start].indexOf('['), end, lines[end].lastIndexOf(']') + 1), 'page-copy', 'text');
     copyBtn.classList.add('page-armed');
     copyBtn.title = 'Copy page "' + page.title + '" [ ]';
     editor.scrollToLine(Math.max(0, start - 1), false, true, () => {});
