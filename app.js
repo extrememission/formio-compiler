@@ -1350,6 +1350,7 @@ function compileShorthandUnsafe() {
         else parent.components.push(comp);
     };
     const pages = []; // wizard pages from "=== Page: Name" lines
+    pageRows = new Map(); // shorthand row of each "=== Page:" line → its page panel
     // Close the innermost container; a [repeat] becomes its copies here
     const popContainer = () => {
         const popped = containerStack.pop();
@@ -1382,6 +1383,7 @@ function compileShorthandUnsafe() {
             const title = pageMatch[1].trim() || 'Page ' + (pages.length + 1);
             const page = { title, label: title, key: generateSmartKey(title), type: 'panel', input: false, tableView: false, components: [] };
             pages.push(page);
+            pageRows.set(i, page);
             rootComponents.push(page);
             containerStack.push(page);
             lineComps[i] = null;
@@ -1610,7 +1612,8 @@ document.getElementById('btn-clear').addEventListener('click', () => {
     shorthand.focus();
 });
 document.getElementById('btn-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(editor.getValue()).then(() => {
+    const text = armedPage ? JSON.stringify(armedPage.components, null, 2) : editor.getValue();
+    navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('btn-copy');
         const originalHTML = btn.innerHTML;
         btn.innerHTML = '<i class="fa-solid fa-check" style="color:var(--accent);"></i>';
@@ -1993,6 +1996,13 @@ function scheduleSync() {
 
 function syncToCursor() {
     let row = shorthand.getCursorPosition().row;
+    armPage(pageRows.get(row));
+    if (armedPage) {
+        lastSyncKey = armedPage.key;
+        highlightJson(null);
+        if (previewFrame && previewReady && layout.previewOpen) previewFrame.contentWindow.postMessage({ type: 'focus', key: armedPage.key, center: true }, '*');
+        return;
+    }
     while (row >= 0 && !lineKeys[row]) row--; // blank or plain line: use the component above it
     syncAll(row >= 0 ? lineKeys[row] : null, 'shorthand');
 }
@@ -2089,6 +2099,36 @@ function highlightJson(key, center) {
 }
 
 shorthand.selection.on('changeCursor', scheduleSync);
+
+// --- Copy one page: cursor on a "=== Page:" line highlights that page's [ ... ] and Copy takes just that ---
+let pageRows = new Map();
+let armedPage = null;
+let pageMarker = null;
+const copyBtn = document.getElementById('btn-copy');
+
+function armPage(page) {
+    const session = editor.session;
+    if (pageMarker !== null) { session.removeMarker(pageMarker); pageMarker = null; }
+    armedPage = null;
+    copyBtn.classList.remove('page-armed');
+    copyBtn.title = 'Copy Schema';
+    if (!page) return;
+    const lines = session.getDocument().getAllLines();
+    const keyRow = lines.findIndex(l => l.trim().replace(/,$/, '') === '"key": ' + JSON.stringify(page.key));
+    if (keyRow === -1) return;
+    const indent = ' '.repeat(lines[keyRow].search(/\S/));
+    let start = keyRow;
+    while (start > 0 && lines[start] !== indent.slice(2) + '{') start--; // the page panel's own {
+    while (start < lines.length && !lines[start].startsWith(indent + '"components": [')) start++;
+    let end = start;
+    if (!/\[\],?$/.test(lines[start])) while (end < lines.length - 1 && lines[end] !== indent + ']' && lines[end] !== indent + '],') end++;
+    if (start >= lines.length) return;
+    armedPage = page;
+    pageMarker = session.addMarker(new Range(start, 0, end, Infinity), 'page-copy', 'fullLine');
+    copyBtn.classList.add('page-armed');
+    copyBtn.title = 'Copy page "' + page.title + '" [ ]';
+    editor.scrollToLine(Math.max(0, start - 1), false, true, () => {});
+}
 
 // --- Pre-fill Example ---
 shorthand.setValue(`[panel] Employee Onboarding

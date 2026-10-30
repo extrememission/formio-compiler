@@ -38,6 +38,7 @@ Split a form into wizard pages with `=== Page: Name` lines:
 *   Everything until the next `===` line belongs to that page (blank lines inside a page close containers, never the page). Anything before the first page goes at the top of page 1.
 *   Formulas, reports, charts and showWhen see the **whole form**, so a total on page 3 can use fields from page 1.
 *   The JSON pane always shows the **whole form**: each page is a top-level panel titled with its name. Click a line in any pane to jump to that spot in the others.
+*   **Copy one page:** put the cursor on a `=== Page:` line. That page's `[ ... ]` turns green in the JSON and so does the Copy button; Copy then takes just that page, ready to paste into the page's `"components": [ ]` in your app. Anywhere else, Copy takes the whole form. Copy every page from the same build (don't edit the shorthand in between) so cross-page formulas keep matching keys.
 *   The Preview shows all pages stacked as panels.
 
 ### Form Name

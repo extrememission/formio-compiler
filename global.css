@@ -92,6 +92,7 @@ button i { margin-right: 5px; }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-text { background: transparent; color: var(--text-muted); }
 .btn-text:hover { background: var(--bg-surface-hover); color: var(--text-main); }
+.btn-text.page-armed, .btn-text.page-armed:hover { background: rgba(46, 160, 67, 0.3); color: #2ea043; box-shadow: inset 0 0 0 1px #2ea043; }
 .btn-text.text-danger { color: var(--danger); }
 .btn-text.text-danger:hover { background: rgba(248, 81, 73, 0.1); color: var(--danger); }
 .btn-icon { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); padding: 0; }
@@ -117,6 +118,7 @@ button i { margin-right: 5px; }
 /* Ace markers: special characters (red underline) and the synced component (blue band) */
 .ace_marker-layer .bad-char { position: absolute; background: rgba(248, 81, 73, 0.25); border-bottom: 2px solid var(--danger); }
 .ace_marker-layer .sync-line { position: absolute; background: rgba(0, 122, 204, 0.15); }
+.ace_marker-layer .page-copy { position: absolute; background: rgba(46, 160, 67, 0.3); }
 /* Ace draws find matches and copies of a selected word with the same highlighter, so the color follows the find bar:
    closed → other copies of a selected word, orchid pink-purple; open (Ctrl+F) → find matches, bright yellow */
 .ace_marker-layer .ace_selected-word { background: rgba(218, 112, 214, 0.55) !important; border: 1px solid #c24fc2 !important; }
