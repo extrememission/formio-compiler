@@ -257,7 +257,7 @@ When clicked it prints **only the form** — not the app around it — so it wor
 ```text
 [diagnostics] Device, Connection & Photo Test
 ```
-*   **Test Photos:** the client adds a few typical photos.
+*   **Test Photos:** the client adds a few typical photos. You can delete it and use your own upload component instead, with any key: the results watch **every** upload field in the form (any field that picks files the normal way and saves each file with a name and size, as Form.io's file field does).
 *   **Photo Upload Results:** count, total size, largest photo, each photo's size and dimensions, and the **measured upload time and speed** (from picking a photo to the platform finishing the upload). Photos that never finish are listed as not uploaded.
 *   **Device:** browser and version, system, phone/tablet/desktop, screen, touch, CPU cores, rough memory, graphics, language, cookies, and the date, time and time zone of the test.
 *   **Connection:** online/offline, connection type, estimated speed, round trip and data saver (Chrome, Edge and Android only; other browsers show "not shared by this browser"), plus browser storage used and allowed.

@@ -1137,9 +1137,8 @@ function diagRun(instance, keys) {
     var root = instance && instance.root;
     if (!root || (instance.options && instance.options.readOnly)) return;
     var st = window.__formioDiagState || (window.__formioDiagState = { picked: [], batch: 0 });
-    var dev = root.getComponent(keys.device), con = root.getComponent(keys.connection);
-    var pho = root.getComponent(keys.photos), files = root.getComponent(keys.files);
-    if (!dev || !con || !pho || !files) { // form still drawing: try again shortly
+    var dev = root.getComponent(keys.device), con = root.getComponent(keys.connection), pho = root.getComponent(keys.photos);
+    if (!dev || !con || !pho) { // form still drawing: try again shortly
         if (!st.retry) st.retry = setTimeout(function () { st.retry = null; window.__formioDiag(instance, keys); }, 500);
         return;
     }
@@ -1227,9 +1226,16 @@ function diagRun(instance, keys) {
         });
     }
 
-    // Photo results: rebuilt whenever an upload finishes (only when photos were picked in this session)
-    var list = Array.isArray(files.dataValue) ? files.dataValue : [];
+    // Photo results: rebuilt whenever an upload finishes (only when photos were picked in this session).
+    // Watches EVERY upload field in the form, whatever its type or key: any value that is a list of files with name + size.
     if (!st.picked.length) return;
+    var list = [];
+    root.everyComponent(function (c) {
+        var v = c.dataValue;
+        if (Array.isArray(v) && v.length && v.every(function (x) { return x && typeof x === 'object' && (x.name || x.originalName) && 'size' in x; })) {
+            list = list.concat(v);
+        }
+    });
     var now = Date.now(), lines = [], total = 0, largest = null, batches = {}, pending = st.picked.slice();
     list.forEach(function (f, i) {
         var name = f.originalName || f.name || 'file';
@@ -1257,8 +1263,8 @@ function diagRun(instance, keys) {
 }
 
 function buildDiagnostics(title) {
-    const keys = { files: generateSmartKey('diagPhotos'), photos: generateSmartKey('diagPhotoResults'),
-        device: generateSmartKey('diagDevice'), connection: generateSmartKey('diagConnection') };
+    // The photo field is a convenience: results come from any upload field in the form, so it can be swapped or removed
+    const keys = { photos: generateSmartKey('diagPhotoResults'), device: generateSmartKey('diagDevice'), connection: generateSmartKey('diagConnection') };
     const install = 'if (!window.__formioDiag) window.__formioDiag = ' + diagRun.toString() + ';\n' +
         'window.__formioDiag(instance, ' + JSON.stringify(keys) + ');\nshow = true;';
     const report = (label, key, rows) => ({ label, key, type: 'textarea', input: true, tableView: false, disabled: true, autoExpand: true,
@@ -1268,7 +1274,7 @@ function buildDiagnostics(title) {
         components: [
             { label: 'Notice', key: generateSmartKey('diagNotice'), type: 'content', input: false, tableView: false,
                 html: '<p>This section records your device, browser and connection details, plus the size and upload time of the photos you add, to help troubleshoot uploads. Nothing else is collected.</p>' },
-            { label: 'Test Photos', key: keys.files, type: 'file', input: true, tableView: false, multiple: true, image: true,
+            { label: 'Test Photos', key: generateSmartKey('diagPhotos'), type: 'file', input: true, tableView: false, multiple: true, image: true,
                 description: 'Add a few typical photos, the way you normally would.' },
             report('Photo Upload Results', keys.photos, 3),
             report('Device', keys.device, 11),
