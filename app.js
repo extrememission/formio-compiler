@@ -79,12 +79,17 @@ const defaultTemplates = [
         name: "Template: ~ Settings Showcase",
         date: "System Default",
         shorthand: "[panel] ~ Settings Showcase\n~collapsible\n[content] <p>Every field here is customized with <strong>~ lines</strong>. Hover the ⓘ in the margin next to any ~ line to see what it does, or type <strong>~</strong> on a new line under any field to browse all of its settings.</p>\n[textfield] Full Name\n~placeholder: \"First and last name\"\n~tooltip: \"As it appears on your ID\"\n~validate.maxLength: 60\n~showCharCount\n![email] Email\n~description: \"We'll only use this for receipts\"\n[textfield] Employee ID\n~labelPosition: left-left\n~labelWidth: 25\n~prefix: \"#\"\n[number] Hours Worked\n~suffix: \"hrs\"\n~validate.min: 0\n~validate.max: 24\n[select] Department\n~widget: html5\n~placeholder: \"Choose a department\"\n- Field Operations\n- Service\n- Office\n[radio] Shift\n~inline\n- Day\n- Night\n- Weekend\n[textarea] Work Summary\n~rows: 4\n~showWordCount\n~validate.maxWords: 200\n[signature] Technician Signature\n~footer: \"Sign above the line\""
+    },
+    {
+        name: "Template: Upload Diagnostics",
+        date: "System Default",
+        shorthand: "# Upload Diagnostics\n[print]\n[panel] Upload Diagnostics\n![textfield] Company\n![textfield] Your Name\n[diagnostics] Device, Connection & Photo Test\n[textarea] Anything else we should know?\n~placeholder: \"What happens when uploads fail? Which device, where, how often?\""
     }
 ];
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 7);
+    const request = indexedDB.open('FormioCompilerDB', 8);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -426,9 +431,7 @@ function addRowFormula(grid, text, row) {
 }
 
 // @ radio/select keep the label as the value; everything else gets a unique smart key
-// @ values are the label with its spaces as NON-BREAKING spaces (U+00A0): they look identical, but PDF tools that
-// split values on spaces (or turn _ and - into spaces first) keep it as one item. Everything else gets a smart key.
-const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, ' ');
+const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, ' ');
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? asIsValue(opt) : generateSmartKey(opt);
 
 function generateSmartKey(label) {
@@ -557,6 +560,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
     }
 
     if (type === 'print') return buildCleanPdfButton(label || 'Export Clean PDF');
+    if (type === 'diagnostics') return buildDiagnostics(label || 'Upload Diagnostics');
 
     if (type.startsWith('fs') && type.length > 2) {
         const key = usedLookupKeys.has(type) ? generateSmartKey(type) : type;
@@ -1125,6 +1129,157 @@ function buildCleanPdfButton(text) {
     };
 }
 
+// --- Diagnostics: [diagnostics] Upload Diagnostics ---
+// A test photo upload plus three read-only reports (photos, device, connection) that fill themselves in from what
+// the browser shares freely (no permission prompts). Runs from a hidden field's customConditional like Clean PDF;
+// only while filling out an entry, and a saved report is never overwritten by whoever views it later.
+function diagRun(instance, keys) {
+    var root = instance && instance.root;
+    if (!root || (instance.options && instance.options.readOnly)) return;
+    var st = window.__formioDiagState || (window.__formioDiagState = { picked: [], batch: 0 });
+    var dev = root.getComponent(keys.device), con = root.getComponent(keys.connection);
+    var pho = root.getComponent(keys.photos), files = root.getComponent(keys.files);
+    if (!dev || !con || !pho || !files) { // form still drawing: try again shortly
+        if (!st.retry) st.retry = setTimeout(function () { st.retry = null; window.__formioDiag(instance, keys); }, 500);
+        return;
+    }
+    var size = function (b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
+    var big = function (b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : size(b); };
+
+    // Files picked (Browse, camera or drag & drop): start the upload clock and read photo dimensions
+    if (!st.listening) {
+        st.listening = true;
+        var note = function (list) {
+            var batch = ++st.batch, now = Date.now();
+            Array.prototype.forEach.call(list || [], function (f) {
+                var rec = { name: f.name, size: f.size, t0: now, batch: batch };
+                st.picked.push(rec);
+                if (/^image\//.test(f.type) && window.URL && URL.createObjectURL) {
+                    var img = new Image(), u = URL.createObjectURL(f);
+                    img.onload = function () { rec.dims = img.naturalWidth + ' x ' + img.naturalHeight; URL.revokeObjectURL(u); };
+                    img.onerror = function () { URL.revokeObjectURL(u); };
+                    img.src = u;
+                }
+            });
+        };
+        document.addEventListener('change', function (e) { if (e.target && e.target.type === 'file') note(e.target.files); }, true);
+        document.addEventListener('drop', function (e) { if (e.dataTransfer) note(e.dataTransfer.files); }, true);
+    }
+
+    // Device + connection: once per entry
+    if (!dev.dataValue && !st.gathering) {
+        st.gathering = true;
+        var n = navigator, ua = n.userAgent || '', uad = n.userAgentData;
+        var high = uad && uad.getHighEntropyValues ? uad.getHighEntropyValues(['platformVersion', 'model', 'fullVersionList']).catch(function () { return null; }) : Promise.resolve(null);
+        var store = n.storage && n.storage.estimate ? n.storage.estimate().catch(function () { return null; }) : Promise.resolve(null);
+        Promise.all([high, store]).then(function (r) {
+            var h = r[0] || {}, s = r[1], m, notShared = 'not shared by this browser';
+            var browser = 'Unknown';
+            var brand = (h.fullVersionList || []).filter(function (b) { return !/Not.?A.?Brand|Chromium/i.test(b.brand); })[0];
+            if (brand) browser = brand.brand + ' ' + brand.version;
+            else if ((m = ua.match(/Edg\w*\/([\d.]+)/))) browser = 'Edge ' + m[1];
+            else if ((m = ua.match(/OPR\/([\d.]+)/))) browser = 'Opera ' + m[1];
+            else if ((m = ua.match(/SamsungBrowser\/([\d.]+)/))) browser = 'Samsung Internet ' + m[1];
+            else if ((m = ua.match(/(?:Firefox|FxiOS)\/([\d.]+)/))) browser = 'Firefox ' + m[1];
+            else if ((m = ua.match(/(?:Chrome|CriOS)\/([\d.]+)/))) browser = 'Chrome ' + m[1];
+            else if ((m = ua.match(/Version\/([\d.]+).*Safari/))) browser = 'Safari ' + m[1];
+            var tablet = /iPad/.test(ua) || (/Macintosh/.test(ua) && n.maxTouchPoints > 1) || (/Android/.test(ua) && !/Mobile/.test(ua));
+            var os = 'Unknown';
+            if ((m = ua.match(/(?:iPhone|CPU) OS (\d+)_(\d+)/))) os = (tablet ? 'iPadOS ' : 'iOS ') + m[1] + '.' + m[2];
+            else if (tablet && /Macintosh/.test(ua)) os = 'iPadOS';
+            else if ((m = ua.match(/Android ([\d.]+)/))) os = 'Android ' + m[1];
+            else if (/Windows/.test(ua)) os = h.platformVersion ? 'Windows ' + (parseInt(h.platformVersion, 10) >= 13 ? '11' : '10') : 'Windows 10 or 11';
+            else if ((m = ua.match(/Mac OS X ([\d_]+)/))) os = 'macOS' + (h.platformVersion ? ' ' + h.platformVersion : '');
+            else if (/CrOS/.test(ua)) os = 'ChromeOS';
+            else if (/Linux/.test(ua)) os = 'Linux';
+            var kind = tablet ? 'Tablet' : (uad ? uad.mobile : /Mobi|iPhone|Android/.test(ua)) ? 'Phone' : 'Desktop / laptop';
+            var gpu = notShared;
+            try {
+                var gl = document.createElement('canvas').getContext('webgl');
+                var ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+                if (gl) gpu = gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+            } catch (err) {}
+            var now = new Date(), zone = '';
+            try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) {}
+            dev.setValue([
+                'Tested:      ' + now.toLocaleString() + (zone ? ' (' + zone + ')' : ''),
+                'Browser:     ' + browser,
+                'System:      ' + os,
+                'Device:      ' + kind + (h.model ? ' (' + h.model + ')' : ''),
+                'Screen:      ' + screen.width + ' x ' + screen.height + ', window ' + innerWidth + ' x ' + innerHeight + ', pixel ratio ' + (window.devicePixelRatio || 1),
+                'Touch:       ' + (n.maxTouchPoints > 0 ? 'yes' : 'no'),
+                'CPU cores:   ' + (n.hardwareConcurrency || notShared),
+                'Memory:      ' + (n.deviceMemory ? 'about ' + n.deviceMemory + ' GB (rounded by the browser)' : notShared),
+                'Graphics:    ' + gpu,
+                'Language:    ' + (n.language || notShared),
+                'Cookies:     ' + (n.cookieEnabled ? 'on' : 'off')
+            ].join('\n'));
+            var c = n.connection || n.mozConnection || n.webkitConnection;
+            con.setValue([
+                'Status:      ' + (n.onLine ? 'Online' : 'OFFLINE'),
+                'Type:        ' + (c && c.effectiveType ? c.effectiveType + (c.type ? ' (' + c.type + ')' : '') : notShared),
+                'Est. speed:  ' + (c && c.downlink ? c.downlink + ' Mbps (browser estimate, rounded)' : notShared),
+                'Round trip:  ' + (c && c.rtt ? c.rtt + ' ms' : notShared),
+                'Data saver:  ' + (c && 'saveData' in c ? (c.saveData ? 'ON' : 'off') : notShared),
+                'Storage:     ' + (s && s.quota ? big(s.usage || 0) + ' used of ' + big(s.quota) + ' allowed' : notShared)
+            ].join('\n'));
+            st.gathering = false;
+        });
+    }
+
+    // Photo results: rebuilt whenever an upload finishes (only when photos were picked in this session)
+    var list = Array.isArray(files.dataValue) ? files.dataValue : [];
+    if (!st.picked.length) return;
+    var now = Date.now(), lines = [], total = 0, largest = null, batches = {}, pending = st.picked.slice();
+    list.forEach(function (f, i) {
+        var name = f.originalName || f.name || 'file';
+        var rec = null;
+        for (var j = 0; j < pending.length; j++) if (pending[j].name === name && (!f.size || pending[j].size === f.size)) { rec = pending.splice(j, 1)[0]; break; }
+        var bytes = f.size || (rec && rec.size) || 0;
+        total += bytes;
+        if (!largest || bytes > largest.bytes) largest = { name: name, bytes: bytes };
+        var took = '';
+        if (rec) {
+            if (!rec.t1) rec.t1 = now;
+            var b = batches[rec.batch] || (batches[rec.batch] = { bytes: 0, t0: rec.t0, t1: rec.t1 });
+            b.bytes += bytes; b.t1 = Math.max(b.t1, rec.t1);
+            took = '  uploaded in ' + ((rec.t1 - rec.t0) / 1000).toFixed(1) + ' s';
+        }
+        lines.push((i + 1) + '. ' + name + '  ' + size(bytes) + (rec && rec.dims ? '  ' + rec.dims : '') + took);
+    });
+    var timedBytes = 0, timedMs = 0;
+    Object.keys(batches).forEach(function (k) { timedBytes += batches[k].bytes; timedMs += batches[k].t1 - batches[k].t0; });
+    var head = ['Photos:      ' + list.length + ', ' + size(total) + ' in all' + (largest ? ', largest ' + largest.name + ' (' + size(largest.bytes) + ')' : '')];
+    if (timedMs > 0) head.push('Upload:      ' + size(timedBytes) + ' in ' + (timedMs / 1000).toFixed(1) + ' s = ' + (timedBytes * 8 / (timedMs / 1000) / 1e6).toFixed(1) + ' Mbps');
+    if (pending.length) head.push('Not uploaded: ' + pending.map(function (p) { return p.name; }).join(', ') + ' (failed, removed, or still uploading)');
+    var text = head.concat(lines.length ? [''].concat(lines) : []).join('\n');
+    if (pho.dataValue !== text) pho.setValue(text);
+}
+
+function buildDiagnostics(title) {
+    const keys = { files: generateSmartKey('diagPhotos'), photos: generateSmartKey('diagPhotoResults'),
+        device: generateSmartKey('diagDevice'), connection: generateSmartKey('diagConnection') };
+    const install = 'if (!window.__formioDiag) window.__formioDiag = ' + diagRun.toString() + ';\n' +
+        'window.__formioDiag(instance, ' + JSON.stringify(keys) + ');\nshow = true;';
+    const report = (label, key, rows) => ({ label, key, type: 'textarea', input: true, tableView: false, disabled: true, autoExpand: true,
+        rows, placeholder: 'Fills in by itself', customClass: 'text-monospace font-monospace' });
+    return {
+        title, label: title, legend: title, key: generateSmartKey(title), type: 'fieldset', input: false, tableView: false,
+        components: [
+            { label: 'Notice', key: generateSmartKey('diagNotice'), type: 'content', input: false, tableView: false,
+                html: '<p>This section records your device, browser and connection details, plus the size and upload time of the photos you add, to help troubleshoot uploads. Nothing else is collected.</p>' },
+            { label: 'Test Photos', key: keys.files, type: 'file', input: true, tableView: false, multiple: true, image: true,
+                description: 'Add a few typical photos, the way you normally would.' },
+            report('Photo Upload Results', keys.photos, 3),
+            report('Device', keys.device, 11),
+            report('Connection', keys.connection, 6),
+            // Last, so the reports exist when it first runs
+            { label: 'Diagnostics Installer', key: generateSmartKey('diagInstaller'), type: 'hidden',
+                input: true, tableView: false, persistent: false, clearOnHide: false, customConditional: install }
+        ]
+    };
+}
+
 // --- Charts: [chart: Labor Total, Materials Total, SUM(Ext. Price)] Cost Breakdown ---
 // A live HTML Element (refreshOnChange) drawing horizontal bars with inline styles and Bootstrap bg-* colors,
 // so it looks the same in the Preview, the app, a viewed entry and a printout.
@@ -1262,12 +1417,12 @@ function resolveShowWhen(pending, rootComponents) {
 }
 
 // ~defaultValue on choice fields may name choices by label ("Summary Counts") or the old underscore spelling;
-// convert each to the choice's real value (e.g. with @ non-breaking spaces) so nobody has to type invisible characters.
+// convert each to the choice's real value so nobody has to look up generated keys.
 function normalizeChoiceDefaults(list) {
     (list || []).forEach(c => {
         const choices = choicesOf(c);
         if (choices.length && c.defaultValue !== undefined && c.defaultValue !== '') {
-            const norm = (s) => String(s).replace(/[\s_ ]+/g, ' ').trim().toLowerCase();
+            const norm = (s) => String(s).replace(/[\s_]+/g, ' ').trim().toLowerCase();
             const toValue = (v) => { const hit = choices.find(o => norm(o.label) === norm(v) || norm(o.value) === norm(v)); return hit ? hit.value : v; };
             if (c.defaultValue && typeof c.defaultValue === 'object' && !Array.isArray(c.defaultValue)) {
                 c.defaultValue = Object.fromEntries(Object.entries(c.defaultValue).map(([k, on]) => [toValue(k), on]));
@@ -1845,6 +2000,7 @@ const quickSnippets = [
     { name: 'html', desc: 'HTML Element', syntax: '[html: ${2:h2}] ${1:Heading}' },
     { name: 'content', desc: 'HTML Content', syntax: '[content] ${1:<p>Content</p>}' },
     { name: 'print', desc: 'Export Clean PDF button', syntax: '[print] ${1:Export Clean PDF}' },
+    { name: 'diagnostics', desc: 'Device, connection & photo upload test', syntax: '[diagnostics] ${1:Upload Diagnostics}' },
     { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' },
     { name: 'bulknotesif', desc: 'Bulk + notes when picked', syntax: '+++ ![radio] ${1:Notes}?\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' },
     { name: 'bulknotes', desc: 'Bulk + always-on notes', syntax: '+++ ![radio] ${1:Notes}\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' }

@@ -72,7 +72,7 @@ Add a `!` before any component to instantly mark it as required.
 ```
 
 ### Values = Labels (The @ Modifier)
-By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]`, `[select]` or `[selectboxes]` to make every choice's value its label, with its spaces saved as **non-breaking spaces** (`Safety toe leather footwear` in the JSON). They look exactly like normal spaces, but PDF tools that split values on spaces — or turn `_` and `-` into spaces first — keep it as one item. In `~defaultValue` just write the labels (`{"Summary Counts": true}`); the compiler converts them to the real values. The form still shows the normal label, and reports turn values back into labels. Avoid periods in checkbox-list labels: they become field names in the data. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
+By default each choice gets a unique value (`Day Shift` → `dayShift_x7k2`). Add `@` before a `[radio]`, `[select]` or `[selectboxes]` to make every choice's value its label, exactly as typed (`Day Shift` saves as `Day Shift`). In `~defaultValue` just write the labels (`{"Summary Counts": true}`); the compiler converts them to the real values. The form still shows the normal label, and reports turn values back into labels. Avoid periods in checkbox-list labels: they become field names in the data. Combine with `!` in either order; in Bulk Mode it applies to the shared choices of every question (question keys stay unique).
 ```text
 @[radio] Shift
 - Day Shift
@@ -251,6 +251,17 @@ When clicked it prints **only the form** — not the app around it — so it wor
 *   Adds a header with the form title and print date/time, and page numbers where the browser supports them.
 *   Names the PDF `Form Title - YYYY-MM-DD` when "Save as PDF" is chosen.
 *   The print code lives in a hidden field (its custom conditional, re-checked whenever the form is drawn), so it works on new and saved entries, in Edit and View, saves nothing to the entry, and keeps the builder tidy — the button itself is a short HTML element. Both sit in an invisible field set, so `[print]` is one draggable item. (Like formulas, it needs the platform to allow Form.io custom JavaScript.)
+
+### Upload Diagnostics
+`[diagnostics]` adds a field set (titled with your label, default **Upload Diagnostics**) for troubleshooting a client's uploads. The ready-made **Upload Diagnostics** template in Favorites wraps it in a full form. It uses only what the browser shares freely, so there are no permission prompts.
+```text
+[diagnostics] Device, Connection & Photo Test
+```
+*   **Test Photos:** the client adds a few typical photos.
+*   **Photo Upload Results:** count, total size, largest photo, each photo's size and dimensions, and the **measured upload time and speed** (from picking a photo to the platform finishing the upload). Photos that never finish are listed as not uploaded.
+*   **Device:** browser and version, system, phone/tablet/desktop, screen, touch, CPU cores, rough memory, graphics, language, cookies, and the date, time and time zone of the test.
+*   **Connection:** online/offline, connection type, estimated speed, round trip and data saver (Chrome, Edge and Android only; other browsers show "not shared by this browser"), plus browser storage used and allowed.
+*   The reports are read-only text saved in the entry. They fill in only while an entry is being filled out, never when someone views it later. The code lives in a hidden field, like Clean PDF, and needs Form.io custom JavaScript.
 
 ### Bulk Mode
 Need to ask the same type of question 50 times? Wrap your questions in `+++` tags to inherit the parent component type. For multiple choice fields, define your choices at the top, and they will apply to every question below!
