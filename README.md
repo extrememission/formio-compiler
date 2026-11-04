@@ -148,6 +148,12 @@ Any tag starting with `fs` creates a select whose API key (Property Name) is the
 
 The label is whatever you type after the tag; leave it blank to get the default. Each one shows the placeholder "Type to select..." in the form (`[fscompany]` also sets `"multiple": true` so multiple companies can be selected). Type `[fs` to see them in the autocomplete menu.
 
+**Show a lookup's name in another field:** a formula that is just the lookup's label copies the **name** it displays, not the ID it saves. Read-only, updates live, saved in the entry.
+```text
+[fscompany] Company
+[textfield: =Company] Company Name
+```
+
 ### Smart Number Ranges
 Define min and max limits for numbers. The compiler will automatically calculate the maximum digits and apply custom Bootstrap CSS classes (`col-md-2`, etc.) to visually size the input box perfectly, and inject whole-number validation boundaries with a friendly error message.
 ```text

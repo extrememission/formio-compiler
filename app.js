@@ -818,15 +818,17 @@ function buildLabelIndex(rootComponents) {
 // fs lookups save whatever the app's endpoint gives (maybe just an ID). A hidden twin copies the name the
 // lookup DISPLAYS into the entry as text, and reports read that.
 const isLookup = (c) => !!c && c.type === 'select' && !c.dataSrc && String(c.key).startsWith('fs');
+// The name a lookup DISPLAYS, as plain text. Only when something is actually picked (an empty lookup can still
+// display a placeholder, which would make unused [repeat] copies look like entries). getView returns display HTML
+// (<span>John Smith</span>): keep the text.
+const lookupNameCalc = (lookupKey) => "var w = instance.root.getComponent('" + lookupKey + "'); var box = document.createElement('div'); " +
+    "box.innerHTML = w && !w.isEmpty(w.dataValue) ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();";
 function ensureNameCopy(lookup, rootComponents, done) {
     const nameKey = lookup.key + '_name';
     if (done.has(nameKey)) return nameKey;
     done.add(nameKey);
     const twin = { label: lookup.label + ' (name)', key: nameKey, type: 'hidden', input: true, tableView: false,
-        // Only when a worker is actually picked (an empty lookup can still display a placeholder, which would make
-        // unused [repeat] copies look like entries). getView returns display HTML (<span>John Smith</span>): keep the text.
-        calculateValue: "var w = instance.root.getComponent('" + lookup.key + "'); var box = document.createElement('div'); " +
-            "box.innerHTML = w && !w.isEmpty(w.dataValue) ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();" };
+        calculateValue: lookupNameCalc(lookup.key) };
     insertAfter(lookup, twin, rootComponents);
     return nameKey;
 }
@@ -1009,6 +1011,14 @@ function resolveFormulas(pending, rootComponents) {
         if (listBy) return applyListReport(comp, 'listby', listBy[1], ctx, row);
         const log = formula.match(/^LOG\((.*)\)$/i);
         if (log) return applyListReport(comp, 'log', log[1], ctx, row);
+        // "[textfield: =Company] Company Name": a lone lookup label copies the NAME it shows, not its saved ID
+        const lone = (keysByLabel.get(formula.replace(/^"(.*)"$/, '$1').trim().toLowerCase()) || []).map(k => compByKey.get(k));
+        if (lone.length === 1 && isLookup(lone[0])) {
+            comp.calculateValue = lookupNameCalc(lone[0].key);
+            comp.disabled = true;
+            compileHints.push({ row, text: `Shows the name picked in ${lone[0].label} (read-only, updates live)` });
+            return;
+        }
         const { expr, problems } = translateFormula(formula, comp, keysByLabel, grids, 'data');
         applyCalculation(comp, expr, problems, row, `${comp.label} = ${formula}`);
     });
