@@ -456,6 +456,7 @@ function unrollRepeatGroup(groupDef) {
             tag: 'p',
             content: `${groupDef.label} (${i})`,
             key: generateSmartKey(`header_${groupKey}_${i}`),
+            properties: { repeatHeader: 'true' }, // [allfields] lists each copy under this heading
             input: false,
             tableView: false
         };
@@ -561,6 +562,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
 
     if (type === 'print') return buildCleanPdfButton(label || 'Export Clean PDF');
     if (type === 'diagnostics') return buildDiagnostics(label || 'Upload Diagnostics');
+    if (type === 'allfields') return buildAllFields(label || 'Entry Summary');
 
     if (type.startsWith('fs') && type.length > 2) {
         const key = usedLookupKeys.has(type) ? generateSmartKey(type) : type;
@@ -1296,6 +1298,101 @@ function buildDiagnostics(title) {
     };
 }
 
+// --- All Fields: [allfields] Entry Summary ---
+// A hidden field builds an HTML summary of EVERY answered field at runtime (no keys or labels to list) and saves it
+// in the entry; a Content component shows it, so the platform's PDF prints it formatted. Fields added later are
+// caught automatically. ~showBlanks lists unanswered fields too, as "—".
+function allFieldsRun(instance, showBlanks) {
+    var root = instance && instance.root;
+    if (!root) return '';
+    if (instance.options && instance.options.readOnly) return instance.dataValue || ''; // viewing: keep what was saved
+    var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var text = function (html) { var d = document.createElement('div'); d.innerHTML = String(html == null ? '' : html); return (d.textContent || '').trim(); };
+    var out = [], pending = [];
+    var heading = function (level, title) {
+        pending = pending.filter(function (p) { return p.level < level; });
+        if (title) pending.push({ level: level, title: title });
+    };
+    var line = function (label, answer) {
+        pending.forEach(function (p) {
+            out.push(p.level <= 1 ? '<h5 style="margin:14px 0 4px;">' + esc(p.title) + '</h5>'
+                : '<h6 style="margin:10px 0 2px;">' + esc(p.title) + '</h6>');
+        });
+        pending = [];
+        out.push('<div style="margin:2px 0;"><strong>' + esc(label) + ':</strong> ' + answer + '</div>');
+    };
+    var answerOf = function (c) {
+        var comp = c.component, v = c.dataValue;
+        var empty = v === undefined || v === null || v === '' || v === false || (Array.isArray(v) && !v.length) ||
+            (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).some(function (k) { return v[k]; }));
+        if (empty) return null;
+        if (comp.type === 'signature') return 'Signed';
+        if (comp.type === 'checkbox') return '&#10003;';
+        if (comp.type === 'file') {
+            var images = v.every(function (f) { return /^image\//.test(f.type || '') || /\.(jpe?g|png|gif|heic|webp)$/i.test(f.originalName || f.name || ''); });
+            return v.length + (images ? ' photo' : ' file') + (v.length === 1 ? '' : 's');
+        }
+        if (comp.type === 'editgrid' || comp.type === 'datagrid') {
+            var cols = comp.components || [];
+            return v.map(function (row, i) {
+                return '<br>&nbsp;&nbsp;' + (i + 1) + '. ' + cols.filter(function (k) { return row[k.key] !== undefined && row[k.key] !== ''; })
+                    .map(function (k) { return esc(k.label) + ': ' + esc(row[k.key]); }).join('; ');
+            }).join('');
+        }
+        var shown = '';
+        try { shown = text(c.getView(v)); } catch (e) { shown = typeof v === 'object' ? JSON.stringify(v) : String(v); }
+        return esc(shown).replace(/\r?\n/g, '<br>');
+    };
+    var walk = function (list, level) {
+        (list || []).forEach(function (c) {
+            if (!c || !c.component || c === instance) return;
+            var comp = c.component, type = comp.type;
+            if (c.visible === false) return; // hidden by a condition, or not shown
+            var kids = (type === 'editgrid' || type === 'datagrid') ? null : c.components;
+            if (Array.isArray(kids) && kids.length) {
+                var title = type === 'fieldset' ? comp.legend : (type === 'panel' ? comp.title : '');
+                heading(level, title);
+                walk(kids, title ? level + 1 : level);
+                heading(level, null); // drop this container's heading if nothing was listed under it
+                return;
+            }
+            // Headings placed in the form ([html: h3] ..., and each [repeat] copy's "Name (1)" line) become sub-headings
+            if (type === 'htmlelement' && (/^h[1-6]$/.test(comp.tag || '') || (comp.properties && comp.properties.repeatHeader))) {
+                heading(level, text(comp.content));
+                return;
+            }
+            if (!comp.input || ['button', 'hidden', 'content', 'htmlelement'].indexOf(type) !== -1 || comp.persistent === false) return;
+            if (/^addAnother_/.test(comp.key)) return; // [repeat]'s "Add another?" boxes
+            var answer = answerOf(c);
+            if (answer === null && !showBlanks) return;
+            line(text(comp.label) || comp.key, answer === null ? '&mdash;' : answer);
+        });
+    };
+    walk(root.pages && root.pages.length ? root.pages : root.components, 1);
+    return out.join('\n');
+}
+
+const allFieldsHidden = new WeakMap(); // [allfields] wrapper → its hidden builder (for ~showBlanks)
+const allFieldsCalc = (showBlanks) =>
+    'if (!window.__formioAllFields) window.__formioAllFields = ' + allFieldsRun.toString() + ';\n' +
+    'value = window.__formioAllFields(instance, ' + (showBlanks ? 'true' : 'false') + ');';
+
+function buildAllFields(title) {
+    const dataKey = generateSmartKey('allFields');
+    const hidden = { label: title + ' (data)', key: dataKey, type: 'hidden', input: true, tableView: false, clearOnHide: false,
+        calculateValue: allFieldsCalc(false) };
+    const wrapper = {
+        label: title, legend: '', key: generateSmartKey(title), type: 'fieldset', input: false, tableView: false,
+        components: [
+            hidden,
+            { label: title, key: generateSmartKey('allFieldsView'), type: 'content', input: false, tableView: false, refreshOnChange: true,
+                html: '<h4>' + escapeHtml(title) + '</h4>{{ data.' + dataKey + ' }}' }
+        ]
+    };
+    allFieldsHidden.set(wrapper, hidden);
+    return wrapper;
+}
+
 // --- Charts: [chart: Labor Total, Materials Total, SUM(Ext. Price)] Cost Breakdown ---
 // A live HTML Element (refreshOnChange) drawing horizontal bars with inline styles and Bootstrap bg-* colors,
 // so it looks the same in the Preview, the app, a viewed entry and a printout.
@@ -1604,6 +1701,12 @@ function compileShorthandUnsafe() {
                 if (settingsTarget === bulkDef) compileWarnings.push({ row: i, text: "~showWhen isn't supported under a +++ bulk block" });
                 else if (repeat && repeat.type === 'repeat' && repeat.components.includes(settingsTarget)) showWhenInRepeat(settingsTarget, String(setting.value), i, repeat);
                 else pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i });
+                lineComps[i] = settingsTarget;
+            } else if (setting.path === 'showBlanks') {
+                // Compiler setting for [allfields]: list unanswered fields too
+                const hidden = allFieldsHidden.get(settingsTarget);
+                if (!hidden) compileWarnings.push({ row: i, text: '~showBlanks only applies to [allfields]' });
+                else { hidden.calculateValue = allFieldsCalc(setting.value !== false); compileHints.push({ row: i, text: 'Unanswered fields are listed as —' }); }
                 lineComps[i] = settingsTarget;
             } else if (settingsTarget === bulkDef) {
                 bulkDef.settings.push({ setting, row: i });
@@ -2017,6 +2120,7 @@ const quickSnippets = [
     { name: 'content', desc: 'HTML Content', syntax: '[content] ${1:<p>Content</p>}' },
     { name: 'print', desc: 'Export Clean PDF button', syntax: '[print] ${1:Export Clean PDF}' },
     { name: 'diagnostics', desc: 'Device, connection & photo upload test', syntax: '[diagnostics] ${1:Upload Diagnostics}' },
+    { name: 'allfields', desc: 'Summary of every answered field (prints formatted)', syntax: '[allfields] ${1:Entry Summary}' },
     { name: 'bulk', desc: 'Bulk Mode Wrapper', syntax: '+++ ![radio]\n- ${1:Choice 1}\n- ${2:Choice 2}\n${3:Question 1}\n${4:Question 2}\n+++' },
     { name: 'bulknotesif', desc: 'Bulk + notes when picked', syntax: '+++ ![radio] ${1:Notes}?\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' },
     { name: 'bulknotes', desc: 'Bulk + always-on notes', syntax: '+++ ![radio] ${1:Notes}\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' }
