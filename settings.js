@@ -15,6 +15,14 @@ const COMPILER_SETTINGS = [{
     path: 'showWhen', label: 'Show When', group: 'Compiler', kind: 'text',
     help: 'Show this field only when another field, by label, has a value. Inside a grid row it checks the same row. With ! it is required only when shown.',
     snippet: '~showWhen: ${1:Field Label} = ${2:Value}'
+}, {
+    path: 'showBlanks', label: 'Show Blanks', group: 'Compiler', kind: 'boolean', only: 'allfields',
+    help: 'List unanswered fields too, as "-" (unticked checkboxes as "Not checked").',
+    snippet: '~showBlanks'
+}, {
+    path: 'htmlElement', label: 'HTML Element', group: 'Compiler', kind: 'boolean', only: 'allfields',
+    help: 'Show the summary with an HTML Element instead of a Content component (same text).',
+    snippet: '~htmlElement'
 }];
 
 let settingTargetTypes = [];   // shorthand row → Form.io type a "~" on that row (or the next) would apply to; filled by compileShorthand
@@ -181,17 +189,20 @@ const settingsCompleter = {
         }
 
         if (!prefix.startsWith('~') || before.trim() !== prefix) return callback(null, []);
-        requestCatalog(type, (cat) => {
-            if (!cat) return callback(null, []);
+        // Compiler settings that belong to one shorthand tag (e.g. [allfields]) only show under it
+        const compilerItems = COMPILER_SETTINGS.filter(e => !e.only || e.only === type);
+        const list = (cat) => {
             const used = usedSettingsAt(pos.row);
-            callback(null, [...COMPILER_SETTINGS, ...cat.filter(e => !PROTECTED_SETTINGS.includes(e.path))].map((e, i) => ({
+            callback(null, [...compilerItems, ...(cat || []).filter(e => !PROTECTED_SETTINGS.includes(e.path))].map((e, i) => ({
                 caption: '~' + e.path,
                 snippet: e.snippet || settingSnippet(e),
                 meta: (used.has(e.path) ? '✓ ' : '') + e.group,
                 docText: `${e.label}${e.help ? '\n' + e.help : ''}${e.group === 'Compiler' ? '' : '\nForm.io default: ' + shortText(e.def)}`,
                 score: 1000 - i
             })));
-        });
+        };
+        if (type === 'allfields') return list(null); // a compiler tag: only its own settings
+        requestCatalog(type, (cat) => cat ? list(cat) : callback(null, []));
     }
 };
 

@@ -1720,7 +1720,8 @@ function compileShorthandUnsafe() {
                 settingEntries.push({ comp: settingsTarget, setting, row: i });
                 lineComps[i] = settingsTarget;
             }
-            settingTargetTypes[i] = !settingsTarget ? null : settingsTarget === bulkDef ? formioTypeOf(bulkDef.type) : settingsTarget.type;
+            settingTargetTypes[i] = !settingsTarget ? null : settingsTarget === bulkDef ? formioTypeOf(bulkDef.type)
+                : allFieldsHidden.has(settingsTarget) ? 'allfields' : settingsTarget.type;
             continue;
         }
 
@@ -1790,7 +1791,7 @@ function compileShorthandUnsafe() {
                 const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
                 settingsTarget = comp;
-                settingTargetTypes[i] = comp.type;
+                settingTargetTypes[i] = allFieldsHidden.has(comp) ? 'allfields' : comp.type; // [allfields] gets its own ~ menu
                 if (def.type === 'editgrid' && def.choices && comp.components.length > 5) {
                     compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
                 }
