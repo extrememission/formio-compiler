@@ -265,8 +265,9 @@ When clicked it prints **only the form** — not the app around it — so it wor
 ~showBlanks
 ```
 *   **Bold label:** answer, one per line, under the panel, field set and page titles (and `[html: h3]` headings and each `[repeat]` copy), in form order. Headings with nothing answered under them are left out.
-*   Lookups show names, choices show labels, dates read normally, long text keeps its line breaks. Signatures show "Signed", uploads "3 photos", ticked checkboxes ✓.
-*   Skips fields hidden by a condition, buttons, layout pieces and the compiler's own hidden helpers. Unanswered fields are skipped too, unless you add `~showBlanks` (they then show "—").
+*   Lookups show names, choices show labels, dates read normally, long text keeps its line breaks. Signatures show "Signed", uploads "3 photos", ticked checkboxes "Checked".
+*   Skips fields hidden by a condition, buttons, layout pieces and the compiler's own hidden helpers. Unanswered fields are skipped too, unless you add `~showBlanks` (they then show "-", and unticked checkboxes "Not checked").
+*   Uses only `<b>` and `<br>`: Stimulsoft PDFs hang on richer HTML (headings, styled blocks, special symbols).
 *   How it's saved: a hidden component builds the summary as HTML and **saves it in the entry**; a Content component right under the heading displays it. Your platform's PDF prints the Content component, so the summary prints formatted. Viewing a saved entry shows what was saved. Needs Form.io custom JavaScript, like formulas.
 
 ### Upload Diagnostics

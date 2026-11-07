@@ -1301,7 +1301,8 @@ function buildDiagnostics(title) {
 // --- All Fields: [allfields] Entry Summary ---
 // A hidden field builds an HTML summary of EVERY answered field at runtime (no keys or labels to list) and saves it
 // in the entry; a Content component shows it, so the platform's PDF prints it formatted. Fields added later are
-// caught automatically. ~showBlanks lists unanswered fields too, as "—".
+// caught automatically. ~showBlanks lists unanswered fields too, as "-".
+// Only <b> and <br> (plus &amp; &lt; &gt;): Stimulsoft PDFs hang on richer HTML (headings, styled divs, entities).
 function allFieldsRun(instance, showBlanks) {
     var root = instance && instance.root;
     if (!root) return '';
@@ -1314,12 +1315,9 @@ function allFieldsRun(instance, showBlanks) {
         if (title) pending.push({ level: level, title: title });
     };
     var line = function (label, answer) {
-        pending.forEach(function (p) {
-            out.push(p.level <= 1 ? '<h5 style="margin:14px 0 4px;">' + esc(p.title) + '</h5>'
-                : '<h6 style="margin:10px 0 2px;">' + esc(p.title) + '</h6>');
-        });
+        pending.forEach(function (p) { out.push('<br><b>' + esc(p.title) + '</b><br>'); });
         pending = [];
-        out.push('<div style="margin:2px 0;"><strong>' + esc(label) + ':</strong> ' + answer + '</div>');
+        out.push('<b>' + esc(label) + ':</b> ' + answer + '<br>');
     };
     var answerOf = function (c) {
         var comp = c.component, v = c.dataValue;
@@ -1327,7 +1325,7 @@ function allFieldsRun(instance, showBlanks) {
             (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).some(function (k) { return v[k]; }));
         if (empty) return null;
         if (comp.type === 'signature') return 'Signed';
-        if (comp.type === 'checkbox') return '&#10003;';
+        if (comp.type === 'checkbox') return 'Checked';
         if (comp.type === 'file') {
             var images = v.every(function (f) { return /^image\//.test(f.type || '') || /\.(jpe?g|png|gif|heic|webp)$/i.test(f.originalName || f.name || ''); });
             return v.length + (images ? ' photo' : ' file') + (v.length === 1 ? '' : 's');
@@ -1335,7 +1333,7 @@ function allFieldsRun(instance, showBlanks) {
         if (comp.type === 'editgrid' || comp.type === 'datagrid') {
             var cols = comp.components || [];
             return v.map(function (row, i) {
-                return '<br>&nbsp;&nbsp;' + (i + 1) + '. ' + cols.filter(function (k) { return row[k.key] !== undefined && row[k.key] !== ''; })
+                return '<br>' + (i + 1) + '. ' + cols.filter(function (k) { return row[k.key] !== undefined && row[k.key] !== ''; })
                     .map(function (k) { return esc(k.label) + ': ' + esc(row[k.key]); }).join('; ');
             }).join('');
         }
@@ -1365,11 +1363,11 @@ function allFieldsRun(instance, showBlanks) {
             if (/^addAnother_/.test(comp.key)) return; // [repeat]'s "Add another?" boxes
             var answer = answerOf(c);
             if (answer === null && !showBlanks) return;
-            line(text(comp.label) || comp.key, answer === null ? '&mdash;' : answer);
+            line(text(comp.label) || comp.key, answer !== null ? answer : type === 'checkbox' ? 'Not checked' : '-');
         });
     };
     walk(root.pages && root.pages.length ? root.pages : root.components, 1);
-    return out.join('\n');
+    return out.join('');
 }
 
 const allFieldsHidden = new WeakMap(); // [allfields] wrapper → its hidden builder (for ~showBlanks)
@@ -1386,7 +1384,7 @@ function buildAllFields(title) {
         components: [
             hidden,
             { label: title, key: generateSmartKey('allFieldsView'), type: 'content', input: false, tableView: false, refreshOnChange: true,
-                html: '<h4>' + escapeHtml(title) + '</h4>{{ data.' + dataKey + ' }}' }
+                html: '<b>' + escapeHtml(title) + '</b><br>{{ data.' + dataKey + ' }}' }
         ]
     };
     allFieldsHidden.set(wrapper, hidden);
@@ -1706,7 +1704,7 @@ function compileShorthandUnsafe() {
                 // Compiler setting for [allfields]: list unanswered fields too
                 const hidden = allFieldsHidden.get(settingsTarget);
                 if (!hidden) compileWarnings.push({ row: i, text: '~showBlanks only applies to [allfields]' });
-                else { hidden.calculateValue = allFieldsCalc(setting.value !== false); compileHints.push({ row: i, text: 'Unanswered fields are listed as —' }); }
+                else { hidden.calculateValue = allFieldsCalc(setting.value !== false); compileHints.push({ row: i, text: 'Unanswered fields are listed as "-" (unticked checkboxes as "Not checked")' }); }
                 lineComps[i] = settingsTarget;
             } else if (settingsTarget === bulkDef) {
                 bulkDef.settings.push({ setting, row: i });
