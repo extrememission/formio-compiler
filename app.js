@@ -1700,6 +1700,13 @@ function compileShorthandUnsafe() {
                 else if (repeat && repeat.type === 'repeat' && repeat.components.includes(settingsTarget)) showWhenInRepeat(settingsTarget, String(setting.value), i, repeat);
                 else pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i });
                 lineComps[i] = settingsTarget;
+            } else if (setting.path === 'htmlElement' && allFieldsHidden.has(settingsTarget)) {
+                // [allfields] shown by an HTML Element instead of a Content component
+                const view = settingsTarget.components[1];
+                settingsTarget.components[1] = { label: view.label, key: generateSmartKey('allFieldsView'), type: 'htmlelement', tag: 'div',
+                    input: false, tableView: false, refreshOnChange: true, content: view.html };
+                compileHints.push({ row: i, text: 'Shown by an HTML Element instead of a Content component' });
+                lineComps[i] = settingsTarget;
             } else if (setting.path === 'showBlanks') {
                 // Compiler setting for [allfields]: list unanswered fields too
                 const hidden = allFieldsHidden.get(settingsTarget);
