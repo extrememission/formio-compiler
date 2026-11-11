@@ -310,14 +310,45 @@ function previewSchema() {
 }
 
 function sendPreview() {
-    if (previewFrame && previewReady && layout.previewOpen) {
+    if (!layout.previewOpen) return;
+    if (pdfMode && window.FormioPdf) return sendPdfPreview();
+    if (pdfPreviewFrame) pdfPreviewFrame.style.display = 'none';
+    if (previewFrame) previewFrame.style.display = '';
+    if (previewFrame && previewReady) {
         previewFrame.contentWindow.postMessage({ type: 'render', schema: previewSchema() }, '*');
     }
 }
 
 function schedulePreview() {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(sendPreview, 400);
+    previewTimer = setTimeout(sendPreview, pdfMode ? 1200 : 400); // a PDF takes longer to rebuild
+}
+
+// PDF mode ("#! pdf"): the Preview shows the fillable PDF itself (built by pdf.js) in the browser's PDF viewer
+let pdfPreviewFrame = null, pdfPreviewUrl = null, pdfPreviewRun = 0;
+function sendPdfPreview() {
+    if (!pdfPreviewFrame) {
+        pdfPreviewFrame = document.createElement('iframe');
+        pdfPreviewFrame.id = 'preview-pdf';
+        pdfPreviewFrame.style.cssText = 'flex: 1; width: 100%; border: none; background: #fff;';
+        document.getElementById('preview-frame-wrap').appendChild(pdfPreviewFrame);
+    }
+    if (previewFrame) previewFrame.style.display = 'none';
+    pdfPreviewFrame.style.display = '';
+    const run = ++pdfPreviewRun;
+    window.FormioPdf.build().then(bytes => {
+        if (run !== pdfPreviewRun) return; // a newer build is on its way
+        const old = pdfPreviewUrl;
+        pdfPreviewUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        pdfPreviewFrame.removeAttribute('srcdoc');
+        pdfPreviewFrame.src = pdfPreviewUrl + '#view=FitH';
+        if (old) setTimeout(() => URL.revokeObjectURL(old), 5000);
+    }).catch(err => {
+        if (run !== pdfPreviewRun) return;
+        pdfPreviewFrame.removeAttribute('src');
+        pdfPreviewFrame.srcdoc = '<p style="font: 14px monospace; color: #b00020; padding: 16px;">Could not build the PDF: ' +
+            escapeHtml((err && err.message) || err) + '</p>';
+    });
 }
 
 function ensurePreviewFrame() {
@@ -367,6 +398,10 @@ const asIsComps = new WeakSet(); // radio/select marked with @: choice values = 
 let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin; reset each compile
 let formTitle = '';       // from a "# Title" line in the shorthand; '' when there isn't one
 let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
+// Fillable PDF (pdf.js reads these; never in the JSON). PDF mode = a "#! pdf" line: the form is for paper only.
+let pdfMode = false;
+let pdfLeaveOut = new Set(); // keys that can't work on paper (SUMMARY / LIST BY / LOG reports)
+let pdfRows = new Map();     // Edit Grid key → blank table rows (~rows: N under the grid)
 const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
 
 // --- Edit Grid columns: [editgrid: !Item(xl), Qty#(s), Unit Price$, Line Total$] Materials ---
@@ -382,8 +417,8 @@ function parseGridColumns(columnsStr) {
         const w = text.match(/\((s|l|xl)\)\s*$/i);
         if (w) { width = w[1].toLowerCase(); text = text.slice(0, w.index).trim(); }
         let type = 'textfield';
-        const marker = text.match(/[^\s]([$#])$/);
-        if (marker) { type = marker[1] === '$' ? 'currency' : 'number'; text = text.slice(0, -1).trim(); }
+        const marker = text.match(/[^\s]([$#?])$/); // attached ? = checkbox column ("Done?")
+        if (marker) { type = { $: 'currency', '#': 'number', '?': 'checkbox' }[marker[1]]; text = text.slice(0, -1).trim(); }
         return { label: text, type, required, width };
     });
 }
@@ -1007,6 +1042,7 @@ function resolveFormulas(pending, rootComponents) {
             compileWarnings.push({ row, text: "Formulas inside a [repeat] or grid row aren't supported this way: ignored" });
             return;
         }
+        if (/^(SUMMARY|LIST\s+BY|LOG)\(/i.test(formula)) pdfLeaveOut.add(comp.key); // reports can't work on paper
         const summary = formula.match(/^SUMMARY\((.*)\)$/i);
         if (summary) return applySummary(comp, summary[1], ctx, row);
         const listBy = formula.match(/^LIST\s+BY\((.*)\)$/i);
@@ -1587,6 +1623,10 @@ function compileShorthandUnsafe() {
     compileWarnings = [];
     compileHints = [];
     formTitle = '';
+    pdfMode = false;
+    pdfLeaveOut = new Set();
+    pdfRows = new Map();
+    const pdfNotes = []; // { row, text, warn }: what each line becomes in a PDF, shown in the margin in PDF mode
     const pendingFormulas = [];
     const pendingCharts = [];
     const pendingShowWhen = [];
@@ -1632,6 +1672,13 @@ function compileShorthandUnsafe() {
             settingsTarget = null;
             // A blank line closes one container, but never a wizard page (only the next "=== Page:" does)
             if (containerStack.length > 0 && !pages.includes(containerStack[containerStack.length - 1])) popContainer();
+            continue;
+        }
+
+        if (/^#!\s*pdf\s*$/i.test(line)) {
+            // "#! pdf": this form is a fillable PDF only (never pasted into Form.io); the margin says what changes on paper
+            pdfMode = true;
+            compileHints.push({ row: i, text: 'PDF mode: the Preview shows the fillable PDF, and the margin flags what changes on paper' });
             continue;
         }
 
@@ -1706,6 +1753,12 @@ function compileShorthandUnsafe() {
                 settingsTarget.components[1] = { label: view.label, key: generateSmartKey('allFieldsView'), type: 'htmlelement', tag: 'div',
                     input: false, tableView: false, refreshOnChange: true, content: view.html };
                 compileHints.push({ row: i, text: 'Shown by an HTML Element instead of a Content component' });
+                lineComps[i] = settingsTarget;
+            } else if (setting.path === 'rows' && ['editgrid', 'datagrid'].includes(settingsTarget.type)) {
+                // Compiler setting for grids: blank rows in the fillable PDF's table (Form.io grids have no "rows")
+                const n = parseInt(setting.value, 10);
+                if (!(n >= 1 && n <= 200)) compileWarnings.push({ row: i, text: '~rows: a number of rows from 1 to 200' });
+                else { pdfRows.set(settingsTarget.key, n); compileHints.push({ row: i, text: `Fillable PDF: ${n} blank rows` }); }
                 lineComps[i] = settingsTarget;
             } else if (setting.path === 'showBlanks') {
                 // Compiler setting for [allfields]: list unanswered fields too
@@ -1792,9 +1845,18 @@ function compileShorthandUnsafe() {
                 lineComps[i] = comp;
                 settingsTarget = comp;
                 settingTargetTypes[i] = allFieldsHidden.has(comp) ? 'allfields' : comp.type; // [allfields] gets its own ~ menu
-                if (def.type === 'editgrid' && def.choices && comp.components.length > 5) {
+                if (def.type === 'editgrid' && def.choices && comp.components.length > 5 && !pdfMode) {
                     compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
                 }
+                // What this line becomes on paper (shown only in PDF mode)
+                const leftOut = { chart: 'Charts', allfields: '[allfields]', diagnostics: '[diagnostics]', print: '[print]' }[def.type];
+                if (leftOut) pdfNotes.push({ row: i, warn: true, text: `${leftOut} can't work in a PDF: left out` });
+                else if (formulaOf.has(comp) && /^(SUMMARY|LIST\s+BY|LOG)\(/i.test(formulaOf.get(comp))) pdfNotes.push({ row: i, warn: true, text: "Reports can't work in a PDF: left out" });
+                else if (formulaOf.has(comp)) pdfNotes.push({ row: i, text: 'In the PDF: a plain box (the formula only calculates in Form.io)' });
+                else if (def.type.startsWith('fs') && def.type.length > 2) pdfNotes.push({ row: i, text: 'In the PDF: a plain text box (the list comes from the platform)' });
+                else if (def.type === 'file') pdfNotes.push({ row: i, text: 'In the PDF: "(Attach files separately)"' });
+                else if (def.type === 'repeat') pdfNotes.push({ row: i, text: `In the PDF: ${comp.max} copies, no "Add another?" boxes` });
+                else if (def.type === 'editgrid' || def.type === 'datagrid') pdfNotes.push({ row: i, text: 'In the PDF: a fillable table (~rows: N sets how many rows; 5 by default)' });
                 if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
                 if (chartOf.has(comp)) pendingCharts.push({ comp, itemsStr: chartOf.get(comp), row: i });
                 if (['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat', 'table'].includes(def.type)) {
@@ -1818,6 +1880,7 @@ function compileShorthandUnsafe() {
         }
     }
     if (inBulkMode) applyBulkSettings(bulkDef); // block left open at the end
+    if (pdfMode) pdfNotes.forEach(n => (n.warn ? compileWarnings : compileHints).push({ row: n.row, text: n.text }));
 
     while (containerStack.length > 0) popContainer();
     if (pages.length) {

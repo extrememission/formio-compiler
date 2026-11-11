@@ -183,7 +183,7 @@ Define an Edit Grid's columns in one line. While entering a row the fields stack
 
 [currency: =SUM(Ext. Price)] Materials Subtotal
 ```
-*   **Column types:** `$` attached to the name = currency, `#` attached = number, nothing = text. Only an *attached* marker counts, so `Part #` stays a text label. Markers are removed from the displayed name.
+*   **Column types:** `$` attached to the name = currency, `#` attached = number, `?` attached = checkbox (`Done?`), nothing = text. Only an *attached* marker counts, so `Part #` stays a text label. Markers are removed from the displayed name.
 *   **Required:** `!` before a column name.
 *   **Widths:** `(s)`, `(l)`, `(xl)` after a name; unmarked columns are normal. The compiler sizes the table columns to fit. More than 5 columns gets a ⚠ warning.
 *   **Row formulas:** lines starting with `=` right under the grid, as `= Column: formula`. The column becomes read-only and is calculated per row from that row's fields.
@@ -257,6 +257,21 @@ When clicked it prints **only the form** — not the app around it — so it wor
 *   Adds a header with the form title and print date/time, and page numbers where the browser supports them.
 *   Names the PDF `Form Title - YYYY-MM-DD` when "Save as PDF" is chosen.
 *   The print code lives in a hidden field (its custom conditional, re-checked whenever the form is drawn), so it works on new and saved entries, in Edit and View, saves nothing to the entry, and keeps the builder tidy — the button itself is a short HTML element. Both sit in an invisible field set, so `[print]` is one draggable item. (Like formulas, it needs the platform to allow Form.io custom JavaScript.)
+
+### Fillable PDF
+The **PDF icon** next to Download turns the current form into a **fillable PDF**: text boxes, checkboxes, radio buttons and dropdowns anyone can fill in with a PDF reader. PDF fields are named after component keys. The first click needs internet (it loads the pdf-lib library).
+*   **On paper:**
+    *   A field that only shows on a condition prints with an "If …:" line, for example *"If Hazard Type is Other:"*, or just *"If Notes:"* when it sits right under its question (Bulk Mode notes).
+    *   `[repeat: N]` prints **N copies**, without the "Add another?" boxes.
+    *   Formulas print as plain boxes, `fs` lookups as text boxes, uploads as "(Attach files separately)", and signatures as a sign-here box.
+    *   Charts, reports (SUMMARY / LIST BY / LOG), `[allfields]`, `[diagnostics]` and `[print]` are left out.
+*   **Fillable tables:** an Edit Grid prints as a table with your column widths. `~rows: 12` under the grid sets its blank rows (5 by default), `?` columns get a tick box per row, and `$` columns get a **Total** box underneath.
+```text
+[editgrid: Date, !Task(xl), Hours#(s), Done?(s), Cost$] Daily Log
+~rows: 12
+```
+*   **PDF mode:** add a `#! pdf` line (under `# Title`) when a form is for paper only. The **Preview shows the PDF itself**, updating as you type, and the margin flags what each line becomes on paper (⚠ left out, ⓘ changed).
+*   Wizard pages (`=== Page:`) each start a new PDF page. Emoji and non-Western scripts print as "?" (the PDF uses the built-in Helvetica font).
 
 ### Entry Summary (All Fields)
 `[allfields] Entry Summary` adds a formatted summary of **every answered field** in the form. You list nothing: it finds the fields itself, so fields added later are included automatically.

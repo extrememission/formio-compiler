@@ -23,6 +23,10 @@ const COMPILER_SETTINGS = [{
     path: 'htmlElement', label: 'HTML Element', group: 'Compiler', kind: 'boolean', only: 'allfields',
     help: 'Show the summary with an HTML Element instead of a Content component (same text).',
     snippet: '~htmlElement'
+}, {
+    path: 'rows', label: 'PDF Table Rows', group: 'Compiler', kind: 'number', only: ['editgrid', 'datagrid'],
+    help: 'How many blank rows this grid gets in the fillable PDF (5 by default).',
+    snippet: '~rows: ${1:10}'
 }];
 
 let settingTargetTypes = [];   // shorthand row → Form.io type a "~" on that row (or the next) would apply to; filled by compileShorthand
@@ -190,7 +194,7 @@ const settingsCompleter = {
 
         if (!prefix.startsWith('~') || before.trim() !== prefix) return callback(null, []);
         // Compiler settings that belong to one shorthand tag (e.g. [allfields]) only show under it
-        const compilerItems = COMPILER_SETTINGS.filter(e => !e.only || e.only === type);
+        const compilerItems = COMPILER_SETTINGS.filter(e => !e.only || [].concat(e.only).includes(type));
         const list = (cat) => {
             const used = usedSettingsAt(pos.row);
             callback(null, [...compilerItems, ...(cat || []).filter(e => !PROTECTED_SETTINGS.includes(e.path))].map((e, i) => ({
