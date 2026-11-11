@@ -271,6 +271,7 @@ The **PDF icon** next to Download turns the current form into a **fillable PDF**
 ~rows: 12
 ```
 *   **PDF mode:** add a `#! pdf` line (under `# Title`) when a form is for paper only. The **Preview shows the PDF itself**, updating as you type, and the margin flags what each line becomes on paper (⚠ left out, ⓘ changed).
+*   **Try it:** the **Fillable PDF Showcase** template in Favorites (an equipment inspection with a checklist, a show-when field, a work-log table and repeats), or the `#! pdf` and PDF table snippets in the Snippet Library (`[pdftable` in the autocomplete).
 *   Wizard pages (`=== Page:`) each start a new PDF page. Emoji and non-Western scripts print as "?" (the PDF uses the built-in Helvetica font).
 
 ### Entry Summary (All Fields)

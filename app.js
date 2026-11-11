@@ -81,6 +81,52 @@ const defaultTemplates = [
         shorthand: "[panel] ~ Settings Showcase\n~collapsible\n[content] <p>Every field here is customized with <strong>~ lines</strong>. Hover the ⓘ in the margin next to any ~ line to see what it does, or type <strong>~</strong> on a new line under any field to browse all of its settings.</p>\n[textfield] Full Name\n~placeholder: \"First and last name\"\n~tooltip: \"As it appears on your ID\"\n~validate.maxLength: 60\n~showCharCount\n![email] Email\n~description: \"We'll only use this for receipts\"\n[textfield] Employee ID\n~labelPosition: left-left\n~labelWidth: 25\n~prefix: \"#\"\n[number] Hours Worked\n~suffix: \"hrs\"\n~validate.min: 0\n~validate.max: 24\n[select] Department\n~widget: html5\n~placeholder: \"Choose a department\"\n- Field Operations\n- Service\n- Office\n[radio] Shift\n~inline\n- Day\n- Night\n- Weekend\n[textarea] Work Summary\n~rows: 4\n~showWordCount\n~validate.maxWords: 200\n[signature] Technician Signature\n~footer: \"Sign above the line\""
     },
     {
+        name: "Template: Fillable PDF Showcase",
+        date: "System Default",
+        // "#! pdf" = paper only: the Preview shows the PDF and the margin says what each line becomes on paper
+        shorthand: [
+            '# Equipment Inspection',
+            '#! pdf',
+            '[panel] Inspection Details',
+            '![textfield] Site',
+            '![date] Inspection Date',
+            '![textfield] Inspector',
+            '!@[radio] Shift',
+            '- Day',
+            '- Night',
+            '',
+            '[panel] Checklist',
+            '+++ ![radio] Notes?',
+            '- Pass',
+            '- Fail',
+            'Guards and shields in place?',
+            'Emergency stop works?',
+            'Fluid levels correct?',
+            '+++',
+            '!@[radio] Overall Condition', // radio, not select: a dropdown's choices can't be seen on printed paper
+            '- Good',
+            '- Needs Repair',
+            '- Out of Service',
+            '![textarea] Repair Needed',
+            '~showWhen: Overall Condition = Needs Repair',
+            '',
+            '[panel] Parts & Labor',
+            '[editgrid: Date, !Task(xl), Hours#(s), Done?(s), Cost$] Work Log',
+            '~rows: 8',
+            '',
+            '',
+            '[panel] Defects Found',
+            '[repeat: 2] Defect',
+            '[textfield] Defect',
+            '[textarea] Action Taken',
+            '',
+            '',
+            '[panel] Sign Off',
+            '![signature] Inspector Signature',
+            '![date] Date Signed'
+        ].join('\n')
+    },
+    {
         name: "Template: Upload Diagnostics",
         date: "System Default",
         shorthand: "# Upload Diagnostics\n[print]\n[panel] Upload Diagnostics\n![textfield] Company\n![textfield] Your Name\n[diagnostics] Device, Connection & Photo Test\n[textarea] Anything else we should know?\n~placeholder: \"What happens when uploads fail? Which device, where, how often?\""
@@ -89,7 +135,7 @@ const defaultTemplates = [
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 8);
+    const request = indexedDB.open('FormioCompilerDB', 9);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -2160,6 +2206,7 @@ const quickSnippets = [
     { name: 'repeat', desc: 'Super Group Repeater', syntax: '[repeat: ${2:3}] ${1:Repeat Group}' },
     { name: 'editgrid', desc: 'Edit Grid', syntax: '[editgrid] ${1:Edit Grid}' },
     { name: 'editgridcols', desc: 'Edit Grid with $ / # columns + row total', syntax: '[editgrid: ${2:Item(xl), Qty#(s), Price$, Line Total$}] ${1:Items}\n= ${3:Line Total: Qty * Price}' },
+    { name: 'pdftable', desc: 'Fillable PDF table: rows, ? tick boxes, $ total', syntax: '[editgrid: ${2:Date, !Task(xl), Hours#(s), Done?(s), Cost$}] ${1:Daily Log}\n~rows: ${3:10}' },
     { name: 'datagrid', desc: 'Data Grid', syntax: '[datagrid] ${1:Data Grid}' },
     { name: 'well', desc: 'Well Container', syntax: '[well] ${1:Well}' },
     { name: 'table', desc: 'Table Layout', syntax: '[table: ${2:2x2}] ${1:Table}' },
