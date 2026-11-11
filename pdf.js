@@ -583,7 +583,24 @@ async function currentPdf() {
     const PDFLib = await loadPdfLib();
     return buildFormPdf(PDFLib, JSON.parse(JSON.stringify(src.components)), src.title, src.opts);
 }
-window.FormioPdf = { build: currentPdf };
+// Lock a FILLED PDF: flatten its fields so the answers become plain page content that can't be edited as a form.
+// Appearances are redrawn from the saved values first; if that fails (e.g. characters Helvetica lacks), the
+// reader's own drawing of each field is kept instead.
+async function lockPdf(bytes) {
+    const PDFLib = await loadPdfLib();
+    let doc;
+    try { doc = await PDFLib.PDFDocument.load(bytes); }
+    catch (e) { throw new Error('This file is password-protected or not a valid PDF.'); }
+    const form = doc.getForm();
+    if (!form.getFields().length) throw new Error('This PDF has no fillable fields to lock.');
+    try { form.flatten(); }
+    catch (e) {
+        doc = await PDFLib.PDFDocument.load(bytes);
+        doc.getForm().flatten({ updateFieldAppearances: false });
+    }
+    return doc.save();
+}
+window.FormioPdf = { build: currentPdf, lock: lockPdf };
 
 // Same naming rule as Download: "# Title" line, else the first panel / field set / label
 function pdfFileName(src) {
@@ -642,6 +659,44 @@ function addButton() {
     });
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addButton);
-else addButton();
+// "Lock PDF": pick a filled-in PDF, get back a flattened copy named "<name> - locked.pdf"
+function addLockButton() {
+    const anchor = document.getElementById('btn-pdf');
+    if (!anchor || document.getElementById('btn-pdf-lock')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-pdf-lock';
+    btn.className = 'btn-text';
+    btn.title = 'Lock a Filled PDF: pick a filled-in PDF and save a copy whose answers can no longer be edited';
+    btn.innerHTML = '<i class="fa-solid fa-lock"></i>';
+    anchor.insertAdjacentElement('afterend', btn);
+
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'application/pdf,.pdf';
+    picker.hidden = true;
+    document.body.appendChild(picker);
+
+    btn.addEventListener('click', () => { picker.value = ''; picker.click(); });
+    picker.addEventListener('change', async () => {
+        const file = picker.files && picker.files[0];
+        if (!file) return;
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        try {
+            const bytes = await lockPdf(new Uint8Array(await file.arrayBuffer()));
+            await savePdf(bytes, file.name.replace(/\.pdf$/i, '') + ' - locked.pdf');
+        } catch (err) {
+            console.error(err);
+            alert('Could not lock the PDF: ' + ((err && err.message) || err));
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+}
+
+const addButtons = () => { addButton(); addLockButton(); };
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addButtons);
+else addButtons();
 })();
