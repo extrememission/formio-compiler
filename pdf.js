@@ -96,7 +96,7 @@ function skip(c) {
 }
 
 // --- Build the PDF from the compiled components ---
-// opts: { leaveOut: Set of keys to skip, rows: Map of grid key → blank rows }
+// opts: { leaveOut: Set of keys to skip, rows: Map of grid key → blank rows, long: one long page instead of Letter pages }
 async function buildFormPdf(PDFLib, components, title, opts) {
     opts = opts || {};
     leaveOut = opts.leaveOut instanceof Set ? opts.leaveOut : new Set();
@@ -114,7 +114,10 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         fill: rgb(0.96, 0.97, 0.99), head: rgb(0.91, 0.93, 0.96), bar: rgb(0.12, 0.33, 0.58),
         white: rgb(1, 1, 1), red: rgb(0.8, 0.15, 0.2)
     };
-    const PAGE_W = 612, PAGE_H = 792, M = 48, TOP = PAGE_H - M, BOTTOM = M + 14, GAP = 10; // US Letter, points
+    // US Letter, in points. Long mode: Letter width, one page as tall as the form (PDF's limit is 200 in = 14400 pt;
+    // a form longer than that continues on a second long page). The page is trimmed to the content at the end.
+    const long = !!opts.long;
+    const PAGE_W = 612, PAGE_H = long ? 14400 : 792, M = 48, TOP = PAGE_H - M, BOTTOM = M + 14, GAP = 10;
     const st = { page: null, y: TOP };
     const newPage = () => { st.page = doc.addPage([PAGE_W, PAGE_H]); st.y = TOP; };
     const need = (h) => { if (st.y - h < BOTTOM && st.y < TOP) newPage(); };
@@ -529,13 +532,20 @@ async function buildFormPdf(PDFLib, components, title, opts) {
 
     // Wizard forms ("=== Page:" lines): the compiler's pages are top-level panels; each starts a new PDF page
     const isWizard = components.length > 1 && components.every(c => c && c.type === 'panel' && !c.theme && Array.isArray(c.components));
-    if (isWizard) components.forEach((p, i) => { if (i > 0 && st.y < TOP) newPage(); flow([p], M, PAGE_W - 2 * M); });
+    if (isWizard && !long) components.forEach((p, i) => { if (i > 0 && st.y < TOP) newPage(); flow([p], M, PAGE_W - 2 * M); });
     else flow(components, M, PAGE_W - 2 * M);
 
+    // Long mode: trim the last page to where the form ends (the visible page starts at "bottom")
     const pages = doc.getPages();
+    const last = pages[pages.length - 1];
+    const lastBottom = long ? Math.max(0, Math.floor(st.y - M)) : 0;
+    if (lastBottom > 0) { last.setMediaBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); last.setCropBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); }
     pages.forEach((p, i) => {
-        const label = (docTitle ? clip(docTitle, F.reg, 8, 360) + '   ·   ' : '') + `Page ${i + 1} of ${pages.length}`;
-        p.drawText(label, { x: PAGE_W - M - F.reg.widthOfTextAtSize(label, 8), y: M - 20, size: 8, font: F.reg, color: C.muted });
+        const label = (docTitle ? clip(docTitle, F.reg, 8, 360) : '') +
+            (pages.length > 1 ? (docTitle ? '   ·   ' : '') + `Page ${i + 1} of ${pages.length}` : '');
+        if (!label) return;
+        const y = (p === last ? lastBottom : 0) + M - 20;
+        p.drawText(label, { x: PAGE_W - M - F.reg.widthOfTextAtSize(label, 8), y, size: 8, font: F.reg, color: C.muted });
     });
 
     doc.setProducer('Form.io Compiler (pdf-lib)');
@@ -562,13 +572,14 @@ const loadPdfLib = () => libPromise || (libPromise = new Promise((resolve, rejec
 // Reads the compiler's latest output (app.js globals); never writes to them
 function compiledForm() {
     try {
-        /* global lastComponents, formTitle, pdfLeaveOut, pdfRows */
+        /* global lastComponents, formTitle, pdfLeaveOut, pdfRows, pdfLong */
         return {
             components: lastComponents || [],
             title: typeof formTitle === 'string' ? formTitle : '',
             opts: {
                 leaveOut: typeof pdfLeaveOut !== 'undefined' ? pdfLeaveOut : new Set(),
-                rows: typeof pdfRows !== 'undefined' ? pdfRows : new Map()
+                rows: typeof pdfRows !== 'undefined' ? pdfRows : new Map(),
+                long: typeof pdfLong !== 'undefined' && pdfLong
             }
         };
     } catch (e) {

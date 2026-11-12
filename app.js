@@ -127,6 +127,44 @@ const defaultTemplates = [
         ].join('\n')
     },
     {
+        name: "Template: Mobile PDF (Long Page)",
+        date: "System Default",
+        // "#! pdf long" = one long page with no page breaks: scrolls and fills like a web form on a phone or tablet
+        shorthand: [
+            '# Daily Field Report',
+            '#! pdf long',
+            '[panel] Report',
+            '![date] Report Date',
+            '![textfield] Job Site',
+            '![textfield] Foreman',
+            '!@[radio] Weather',
+            '- Clear',
+            '- Rain',
+            '- Snow',
+            '- Wind',
+            '[number] Crew Size',
+            '',
+            '[panel] Site Checks',
+            '+++ ![radio] Notes?',
+            '- Yes',
+            '- No',
+            'Toolbox talk held?',
+            'Site secured overnight?',
+            'Any injuries today?',
+            '+++',
+            '',
+            '[panel] Hours',
+            '[editgrid: !Worker(l), Trade, Hours#(s), Overtime?(s)] Crew Hours',
+            '~rows: 6',
+            '',
+            '',
+            '[panel] Notes & Sign Off',
+            '[textarea] Work Completed Today',
+            '[textarea] Delays or Issues',
+            '![signature] Foreman Signature'
+        ].join('\n')
+    },
+    {
         name: "Template: Upload Diagnostics",
         date: "System Default",
         shorthand: "# Upload Diagnostics\n[print]\n[panel] Upload Diagnostics\n![textfield] Company\n![textfield] Your Name\n[diagnostics] Device, Connection & Photo Test\n[textarea] Anything else we should know?\n~placeholder: \"What happens when uploads fail? Which device, where, how often?\""
@@ -135,7 +173,7 @@ const defaultTemplates = [
 
 const initDB = () => {
     // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 9);
+    const request = indexedDB.open('FormioCompilerDB', 10);
     request.onupgradeneeded = (e) => {
         db = e.target.result;
         if (!db.objectStoreNames.contains('favorites')) {
@@ -446,6 +484,7 @@ let formTitle = '';       // from a "# Title" line in the shorthand; '' when the
 let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
 // Fillable PDF (pdf.js reads these; never in the JSON). PDF mode = a "#! pdf" line: the form is for paper only.
 let pdfMode = false;
+let pdfLong = false;         // "#! pdf long": one long page instead of Letter pages
 let pdfLeaveOut = new Set(); // keys that can't work on paper (SUMMARY / LIST BY / LOG reports)
 let pdfRows = new Map();     // Edit Grid key → blank table rows (~rows: N under the grid)
 const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
@@ -1670,6 +1709,7 @@ function compileShorthandUnsafe() {
     compileHints = [];
     formTitle = '';
     pdfMode = false;
+    pdfLong = false;
     pdfLeaveOut = new Set();
     pdfRows = new Map();
     const pdfNotes = []; // { row, text, warn }: what each line becomes in a PDF, shown in the margin in PDF mode
@@ -1721,10 +1761,16 @@ function compileShorthandUnsafe() {
             continue;
         }
 
-        if (/^#!\s*pdf\s*$/i.test(line)) {
-            // "#! pdf": this form is a fillable PDF only (never pasted into Form.io); the margin says what changes on paper
+        const pdfLine = line.match(/^#!\s*pdf\b\s*(.*)$/i);
+        if (pdfLine) {
+            // "#! pdf": this form is a fillable PDF only (never pasted into Form.io); the margin says what changes on paper.
+            // "#! pdf long": one long page with no page breaks, for filling on a phone or tablet
             pdfMode = true;
-            compileHints.push({ row: i, text: 'PDF mode: the Preview shows the fillable PDF, and the margin flags what changes on paper' });
+            const option = pdfLine[1].trim().toLowerCase();
+            if (option === 'long') pdfLong = true;
+            else if (option) compileWarnings.push({ row: i, text: `Unknown PDF option "${pdfLine[1].trim()}": use #! pdf (Letter pages) or #! pdf long (one long page)` });
+            compileHints.push({ row: i, text: 'PDF mode' + (pdfLong ? ', one long page (for phones and tablets)' : '') +
+                ': the Preview shows the fillable PDF, and the margin flags what changes on paper' });
             continue;
         }
 
