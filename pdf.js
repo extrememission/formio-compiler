@@ -96,7 +96,8 @@ function skip(c) {
 }
 
 // --- Build the PDF from the compiled components ---
-// opts: { leaveOut: Set of keys to skip, rows: Map of grid key → blank rows, long: one long page instead of Letter pages }
+// opts: { leaveOut: Set of keys to skip, rows: Map of grid key → blank rows,
+//         page: 'letter' (default) | 'long' (one long Letter-wide page) | 'phone' (one long phone-width page) }
 async function buildFormPdf(PDFLib, components, title, opts) {
     opts = opts || {};
     leaveOut = opts.leaveOut instanceof Set ? opts.leaveOut : new Set();
@@ -114,10 +115,13 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         fill: rgb(0.96, 0.97, 0.99), head: rgb(0.91, 0.93, 0.96), bar: rgb(0.12, 0.33, 0.58),
         white: rgb(1, 1, 1), red: rgb(0.8, 0.15, 0.2)
     };
-    // US Letter, in points. Long mode: Letter width, one page as tall as the form (PDF's limit is 200 in = 14400 pt;
-    // a form longer than that continues on a second long page). The page is trimmed to the content at the end.
-    const long = !!opts.long;
-    const PAGE_W = 612, PAGE_H = long ? 14400 : 792, M = 48, TOP = PAGE_H - M, BOTTOM = M + 14, GAP = 10;
+    // Sizes in points (72 = 1 inch). Letter: 8.5 x 11 pages. Long: Letter width, one page as tall as the form (PDF's
+    // limit is 200 in = 14400 pt; a longer form continues on a second long page), trimmed to the content at the end.
+    // Phone: the same, 4 in wide with small margins, so text reads at normal size on a phone; tables stack row by row.
+    const phone = opts.page === 'phone';
+    const long = phone || opts.page === 'long';
+    const PAGE_W = phone ? 288 : 612, PAGE_H = long ? 14400 : 792, M = phone ? 16 : 48;
+    const TOP = PAGE_H - M, BOTTOM = M + 14, GAP = 10;
     const st = { page: null, y: TOP };
     const newPage = () => { st.page = doc.addPage([PAGE_W, PAGE_H]); st.y = TOP; };
     const need = (h) => { if (st.y - h < BOTTOM && st.y < TOP) newPage(); };
@@ -443,6 +447,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
             if (lh) { need(lh); labelBlock(c, x, w, st.y, true); st.y -= lh + GAP; }
             return;
         }
+        if (phone) return gridStacked(c, cols, lh, x, w);
         let widths = {};
         try { const m = ((c.templates && c.templates.header) || '').match(/var w = (\{[^}]*\})/); if (m) widths = JSON.parse(m[1]); } catch (e) { widths = {}; }
         const weights = cols.map(k => Number(widths[k.key]) || 2);
@@ -487,6 +492,43 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         st.y -= dh + GAP;
     }
 
+    // Phone width: each table row becomes a small group ("Row 1", then each column's label and box, full width);
+    // checkbox columns are a tick box with the label beside it. Money ($) columns get a "Totals" group at the end.
+    function gridStacked(c, cols, lh, x, w) {
+        const BOX = 11, FIELD = 20;
+        const itemH = (k) => k.type === 'checkbox' ? 17 : 13 + FIELD + 5;
+        const groupH = 16 + cols.reduce((h, k) => h + itemH(k), 0);
+        const rows = Math.max(1, Math.min(200, Number(gridRows.get(c.key)) || GRID_ROWS));
+        need(lh + groupH);
+        labelBlock(c, x, w, st.y, true);
+        st.y -= lh;
+        const group = (title, items, name, tipOf) => {
+            need(16 + items.reduce((h, k) => h + itemH(k), 0));
+            st.page.drawRectangle({ x, y: st.y - 14, width: w, height: 14, color: C.head });
+            txt(title, x + 4, st.y - 10.5, 8.5, F.bold, C.ink);
+            st.y -= 16;
+            items.forEach(k => {
+                const label = clip(T(k.label || '') + (isReq(k) ? ' *' : ''), F.bold, 9, w - 20);
+                if (k.type === 'checkbox') {
+                    checkBox(name(k), x + 4, st.y - BOX - 2, BOX, tipOf(k), false);
+                    txt(label, x + 4 + BOX + 6, st.y - 11, 9.5, F.reg, C.ink);
+                } else {
+                    txt(label, x + 4, st.y - 9.5, 9, F.bold, C.ink);
+                    textField(k, name(k), x + 4, st.y - 13 - FIELD, w - 8, FIELD, false, tipOf(k));
+                }
+                st.y -= itemH(k);
+            });
+            st.y -= 4;
+        };
+        for (let r = 1; r <= rows; r++) {
+            group(`Row ${r}`, cols, k => `${c.key}_${r}_${k.key}`, k => `${T(k.label)} (row ${r})`);
+        }
+        const money = cols.filter(k => k.type === 'currency');
+        if (money.length) group('Totals', money, k => `${c.key}_total_${k.key}`, k => `${T(k.label)} total`);
+        const dh = descBlock(c, x, w, st.y, true);
+        st.y -= dh + GAP;
+    }
+
     // Table rows and Columns: cells side by side, each a stack of fields; a row never splits across pages
     const flatten = (list, out = []) => {
         (list || []).forEach(c => {
@@ -503,6 +545,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return h ? h - GAP : 0;
     };
     function cellsRow(rows, widths, x, w) {
+        if (phone) return rows.forEach(row => row.forEach(list => flow(list, x, w))); // too narrow for side by side: one under another
         const PAD = 8;
         rows.forEach(row => {
             const cells = row.map(list => flatten(list));
@@ -538,13 +581,14 @@ async function buildFormPdf(PDFLib, components, title, opts) {
     // Long mode: trim the last page to where the form ends (the visible page starts at "bottom")
     const pages = doc.getPages();
     const last = pages[pages.length - 1];
-    const lastBottom = long ? Math.max(0, Math.floor(st.y - M)) : 0;
+    const FOOT = phone ? 8 : M - 20; // footer line, up from the page's bottom edge
+    const lastBottom = long ? Math.max(0, Math.floor(st.y - (phone ? 26 : M))) : 0;
     if (lastBottom > 0) { last.setMediaBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); last.setCropBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); }
     pages.forEach((p, i) => {
-        const label = (docTitle ? clip(docTitle, F.reg, 8, 360) : '') +
+        const label = (docTitle ? clip(docTitle, F.reg, 8, Math.min(360, PAGE_W - 2 * M - 70)) : '') +
             (pages.length > 1 ? (docTitle ? '   ·   ' : '') + `Page ${i + 1} of ${pages.length}` : '');
         if (!label) return;
-        const y = (p === last ? lastBottom : 0) + M - 20;
+        const y = (p === last ? lastBottom : 0) + FOOT;
         p.drawText(label, { x: PAGE_W - M - F.reg.widthOfTextAtSize(label, 8), y, size: 8, font: F.reg, color: C.muted });
     });
 
@@ -572,14 +616,14 @@ const loadPdfLib = () => libPromise || (libPromise = new Promise((resolve, rejec
 // Reads the compiler's latest output (app.js globals); never writes to them
 function compiledForm() {
     try {
-        /* global lastComponents, formTitle, pdfLeaveOut, pdfRows, pdfLong */
+        /* global lastComponents, formTitle, pdfLeaveOut, pdfRows, pdfPage */
         return {
             components: lastComponents || [],
             title: typeof formTitle === 'string' ? formTitle : '',
             opts: {
                 leaveOut: typeof pdfLeaveOut !== 'undefined' ? pdfLeaveOut : new Set(),
                 rows: typeof pdfRows !== 'undefined' ? pdfRows : new Map(),
-                long: typeof pdfLong !== 'undefined' && pdfLong
+                page: typeof pdfPage === 'string' ? pdfPage : 'letter'
             }
         };
     } catch (e) {

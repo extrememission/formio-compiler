@@ -272,7 +272,10 @@ The **PDF icon** next to Download turns the current form into a **fillable PDF**
 ~rows: 12
 ```
 *   **PDF mode:** add a `#! pdf` line (under `# Title`) when a form is for paper only. The **Preview shows the PDF itself**, updating as you type, and the margin flags what each line becomes on paper (⚠ left out, ⓘ changed).
-*   **One long page (for phones and tablets):** `#! pdf long` instead of `#! pdf` makes the whole form **one long page** with no page breaks, so it scrolls and fills like a web form, the way an iPhone "Full Page" screenshot looks, but fillable. Letter pages stay the default (they print properly). Try the **Mobile PDF (Long Page)** template in Favorites, or the `#! pdf long` snippet.
+*   **Page size:** Letter pages are the default (they print properly). For filling on a screen, the whole form can be **one long page** with no page breaks, so it scrolls and fills like a web form (like an iPhone "Full Page" screenshot, but fillable):
+    *   `#! pdf long`: Letter width, for **tablets** (an iPad is about Letter's shape).
+    *   `#! pdf phone`: **4 inches wide**, for **phones**, so text reads at normal size without zooming. Fields go full width, table rows become stacked groups ("Row 1: Worker / Trade / Hours / ☐ Overtime"), and money columns get a "Totals" group.
+    *   Try the **Mobile PDF (Phone)** template in Favorites, or the `#! pdf long` / `#! pdf phone` snippets.
 *   **Lock a filled PDF:** the **lock icon** next to the PDF icon. Pick a filled-in PDF and get back `<name> - locked.pdf`: the answers become part of the page and can no longer be edited as a form. Free and in the browser; nothing is uploaded. (Like any PDF, it can still be altered with PDF editing software. For tamper-evident records, use a certified digital signature or your Form.io platform's saved entry.)
 *   **Try it:** the **Fillable PDF Showcase** template in Favorites (an equipment inspection with a checklist, a show-when field, a work-log table and repeats), or the `#! pdf` and PDF table snippets in the Snippet Library (`[pdftable` in the autocomplete).
 *   Wizard pages (`=== Page:`) each start a new PDF page. Emoji and non-Western scripts print as "?" (the PDF uses the built-in Helvetica font).
