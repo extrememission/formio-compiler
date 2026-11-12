@@ -5,7 +5,7 @@
     --border: #e1e4e8;
     --text-main: #24292e;
     --text-muted: #6a737d;
-    --accent: #007acc; /* Standard neutral blue */
+    --accent: #007acc;
     --accent-hover: #0098ff;
     --danger: #d73a49;
     --danger-hover: #cb2431;
@@ -15,7 +15,7 @@
 }
 
 .theme-dark {
-    --bg-main: #111111; /* True black/dark neutral */
+    --bg-main: #111111;
     --bg-surface: #1e1e1e;
     --bg-surface-hover: #2d2d2d;
     --border: #333333;
@@ -40,7 +40,6 @@ body {
     height: 100vh; display: flex; flex-direction: row; 
 }
 
-/* Main Layout & Resizer */
 .app-layout { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
 .left-pane { width: 450px; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-surface); }
 .editor-panel { flex: 1; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-main); }
@@ -51,7 +50,6 @@ body {
 .resizer:hover, .resizer:active { background: var(--accent); width: 4px; }
 .resizer.hidden { display: none; }
 
-/* Preview Column */
 .preview-pane { flex: none; min-width: 120px; display: flex; flex-direction: column; background: var(--bg-surface); }
 .preview-pane.collapsed { width: 36px; min-width: 36px; border-left: 1px solid var(--border); }
 .preview-pane.collapsed .preview-body { display: none; }
@@ -66,7 +64,6 @@ body {
 #preview-frame-wrap { flex: 1; display: flex; min-height: 0; }
 #preview-frame { flex: 1; width: 100%; border: none; background: #fff; }
 
-/* Phones: one pane at a time, chosen from a tab bar at the bottom; no dividers, no Preview strip */
 .mobile-tabs { display: none; }
 @media (max-width: 767px) {
     body { flex-direction: column; height: 100vh; height: 100dvh; }
@@ -92,7 +89,6 @@ body {
     .mobile-tabs button.active { color: var(--accent); }
 }
 
-/* Pane Headers: small title line on top, toolbar line below; same height in every pane */
 .panel-header {
     flex: none; height: 76px; padding: 10px 1rem;
     display: flex; flex-direction: column; gap: 6px;
@@ -102,6 +98,7 @@ body {
     display: flex; align-items: center; justify-content: space-between; height: 20px;
     font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted);
 }
+.file-name { margin-left: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; font-weight: 500; }
 .pane-toolbar { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
 .pane-toolbar .btn-text { padding: 6px 10px; }
 .btn-mini { background: transparent; color: var(--text-muted); padding: 2px 6px; border-radius: 4px; }
@@ -111,7 +108,6 @@ body {
 .wrapper-check:hover { color: var(--text-main); }
 .wrapper-check input { margin: 0; accent-color: var(--accent); cursor: pointer; }
 
-/* Buttons */
 button { cursor: pointer; font-family: inherit; font-weight: 600; border-radius: 6px; border: none; padding: 0.5rem 1rem; transition: all 0.2s; }
 button i { margin-right: 5px; }
 .btn-primary { background: var(--accent); color: #fff; }
@@ -124,7 +120,6 @@ button i { margin-right: 5px; }
 .btn-icon { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-muted); padding: 0; }
 .btn-icon:hover { color: var(--text-main); }
 
-/* Sleek Font Controls */
 .font-controls { 
     display: flex; align-items: center; background: var(--input-bg); 
     border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
@@ -138,27 +133,21 @@ button i { margin-right: 5px; }
 .font-controls button:last-child { border-right: none; }
 .font-controls button:hover { color: var(--text-main); background: var(--bg-surface-hover); }
 
-/* Compiler UI Specifics */
 #shorthand-input { flex: 1; min-height: 0; }
 
-/* Ace markers: special characters (red underline) and the synced component (blue band) */
 .ace_marker-layer .bad-char { position: absolute; background: rgba(248, 81, 73, 0.25); border-bottom: 2px solid var(--danger); }
 .ace_marker-layer .sync-line { position: absolute; background: rgba(0, 122, 204, 0.15); }
 .ace_marker-layer .page-copy { position: absolute; background: rgba(46, 160, 67, 0.3); }
-/* Ace draws find matches and copies of a selected word with the same highlighter, so the color follows the find bar:
-   closed → other copies of a selected word, orchid pink-purple; open (Ctrl+F) → find matches, bright yellow */
 .ace_marker-layer .ace_selected-word { background: rgba(218, 112, 214, 0.55) !important; border: 1px solid #c24fc2 !important; }
 .ace_editor:has(.ace_search:not([style*="display: none"])) .ace_marker-layer .ace_selected-word { background: rgba(255, 235, 0, 0.65) !important; border: 1px solid #f5c400 !important; }
 .pane-toolbar .char-warning { margin-left: auto; color: var(--danger); font-size: 0.78rem; white-space: nowrap; }
 
-/* Modal */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.75); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 1; transition: opacity 0.2s; }
 .modal-overlay.hidden { opacity: 0; pointer-events: none; }
 .modal-content { background: var(--bg-surface); border: 2px solid var(--border); border-radius: 8px; width: 960px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
 .modal-header h2 { margin: 0; color: var(--accent); display: flex; gap: 10px; align-items: center; font-size: 1.2rem; }
 .modal-body { padding: 1.5rem; overflow-y: auto; }
-/* Columns live inside the scrolling modal-body so overflow scrolls down, never sideways */
 .snippet-columns { column-count: 2; column-gap: 2rem; }
 @media (max-width: 700px) { .snippet-columns { column-count: 1; } }
 .snippet-category { margin-bottom: 2rem; break-inside: avoid; page-break-inside: avoid; }
@@ -168,5 +157,4 @@ button i { margin-right: 5px; }
 .btn-insert { background: rgba(0, 122, 204, 0.1); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 4px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
 .btn-insert:hover { background: var(--accent); color: #fff; }
 
-/* Ace Editor Box */
 #json-editor { flex: 1; }

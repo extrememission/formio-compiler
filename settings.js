@@ -1,16 +1,8 @@
-// --- ~ Settings: Form.io settings on lines under a component ---
-// [select] Country
-// ~widget: html5          → "widget": "html5"
-// ~multiple               → "multiple": true
-// ~validate.minLength: 3  → "validate": { "minLength": 3 }
-// The ~ menu, explanations and defaults come from Form.io's own settings forms, loaded on first use.
-// Loaded before app.js; app.js calls initSettings() once the shorthand editor exists.
 
-const PROTECTED_SETTINGS = ['label', 'key', 'type', 'input']; // owned by the shorthand itself
-const COMPILER_MANAGED = ['dataSrc', 'data', 'values', 'calculateValue', 'templates', 'components', 'conditional']; // compiler features depend on these
+const PROTECTED_SETTINGS = ['label', 'key', 'type', 'input'];
+const COMPILER_MANAGED = ['dataSrc', 'data', 'values', 'calculateValue', 'templates', 'components', 'conditional'];
 const SETTINGS_FORMIO_CDN = 'https://cdn.jsdelivr.net/npm/formiojs@4/dist/formio.full.min.js';
 
-// Settings the compiler handles itself (not Form.io settings); listed first in every ~ menu
 const COMPILER_SETTINGS = [{
     path: 'showWhen', label: 'Show When', group: 'Compiler', kind: 'text',
     help: 'Show this field only when another field, by label, has a value. Inside a grid row it checks the same row. With ! it is required only when shown.',
@@ -29,13 +21,12 @@ const COMPILER_SETTINGS = [{
     snippet: '~rows: ${1:10}'
 }];
 
-let settingTargetTypes = [];   // shorthand row → Form.io type a "~" on that row (or the next) would apply to; filled by compileShorthand
-const settingsCatalog = {};    // Form.io type → [{ path, label, help, group, kind, options, def }] or null (not a Form.io type)
-const catalogWaiters = {};     // Form.io type → callbacks waiting for it to load
+let settingTargetTypes = [];
+const settingsCatalog = {};
+const catalogWaiters = {};
 let settingsFrame = null;
 let settingsFrameReady = false;
 
-// "~name" or "~name: value"; values parse as JSON when they can (5, true, "text", [..]), otherwise as plain text (html5)
 function parseSettingLine(line) {
     const m = line.match(/^~\s*([A-Za-z_][\w.]*)\s*(?::\s*(.*))?$/);
     if (!m) return null;
@@ -44,7 +35,6 @@ function parseSettingLine(line) {
     try { return { path: m[1], value: JSON.parse(raw) }; } catch (e) { return { path: m[1], value: raw }; }
 }
 
-// Shorthand types that compile to a different Form.io type
 function formioTypeOf(shorthandType) {
     if (shorthandType === 'date' || shorthandType === 'time') return 'datetime';
     if (shorthandType === 'phonenumber') return 'phoneNumber';
@@ -61,14 +51,12 @@ function setPath(obj, path, value) {
 }
 const shortText = (v) => { const s = v === undefined ? 'not set' : JSON.stringify(v); return s.length > 40 ? s.slice(0, 37) + '...' : s; };
 
-// undefined = catalog not loaded yet; null = not a known setting for this type
 function catalogEntry(type, path) {
     const cat = settingsCatalog[type];
     if (!cat) return undefined;
     return cat.find(e => e.path === path) || null;
 }
 
-// Writes one ~ setting into a component. ~ always wins; report = add margin hints/flags (only on the first pass)
 function applySetting(comp, setting, row, report) {
     const warn = (text) => { if (report) compileWarnings.push({ row, text }); };
     const hint = (text) => { if (report) compileHints.push({ row, text }); };
@@ -93,7 +81,6 @@ function applySetting(comp, setting, row, report) {
     if (entry) hint(`${entry.label}${entry.help ? ': ' + entry.help : ''} (Form.io default: ${shortText(entry.def)})`);
 }
 
-// --- Settings catalog: read from Form.io's own component settings forms, in a hidden frame ---
 const SETTINGS_FRAME_HTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>
 <script src="${SETTINGS_FORMIO_CDN}"><\/script>
 <script>
@@ -154,7 +141,6 @@ function requestCatalog(type, callback) {
     }
 }
 
-// Which settings are already written for the component around this row (for ✓ in the menu)
 function usedSettingsAt(row) {
     const lines = shorthand.session.getDocument().getAllLines();
     const used = new Set();
@@ -173,7 +159,6 @@ function settingSnippet(e) {
     return `~${e.path}: \${1:${escapeSnippet(start)}}`;
 }
 
-// "~" at the start of a line lists every setting for the component above; "~name: " lists that setting's options
 const settingsCompleter = {
     id: 'componentSettings',
     identifierRegexps: [/[\[~\w.]/],
@@ -193,7 +178,6 @@ const settingsCompleter = {
         }
 
         if (!prefix.startsWith('~') || before.trim() !== prefix) return callback(null, []);
-        // Compiler settings that belong to one shorthand tag (e.g. [allfields]) only show under it
         const compilerItems = COMPILER_SETTINGS.filter(e => !e.only || [].concat(e.only).includes(type));
         const list = (cat) => {
             const used = usedSettingsAt(pos.row);
@@ -205,7 +189,7 @@ const settingsCompleter = {
                 score: 1000 - i
             })));
         };
-        if (type === 'allfields') return list(null); // a compiler tag: only its own settings
+        if (type === 'allfields') return list(null);
         requestCatalog(type, (cat) => cat ? list(cat) : callback(null, []));
     }
 };
@@ -222,7 +206,6 @@ function initSettings() {
             settingsCatalog[e.data.compType] = e.data.entries;
             (catalogWaiters[e.data.compType] || []).forEach(cb => cb(e.data.entries));
             delete catalogWaiters[e.data.compType];
-            // Re-run the compile so ~ lines for this type get their explanations and checks
             if (/^\s*~/m.test(shorthand.getValue())) compileShorthand();
         }
     });

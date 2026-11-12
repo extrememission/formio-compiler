@@ -4,40 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Form.io Compiler</title>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="global.css">
 </head>
 <body class="theme-dark">
     
     <main class="app-layout">
-        <!-- LEFT: SHORTHAND EDITOR -->
         <section class="left-pane" id="left-pane" style="width: 45%; min-width: 400px;">
             <div class="panel-header">
-                <div class="pane-title">Form.io Compiler</div>
+                <div class="pane-title">Form.io Compiler <span id="file-name" class="file-name"></span></div>
                 <div class="pane-toolbar">
-                    <button id="btn-save-fav" class="btn-text" title="Save as Favorite"><i class="fa-regular fa-star"></i></button>
-                    <button id="btn-list-favs" class="btn-text" title="My Favorites"><i class="fa-solid fa-folder-open"></i></button>
+                    <button id="btn-open" class="btn-text" title="Open a shorthand .txt file (Ctrl+O)"><i class="fa-regular fa-folder-open"></i></button>
+                    <button id="btn-save" class="btn-text" title="Save the shorthand as a .txt file (Ctrl+S)&#10;Shift+click or Ctrl+Shift+S: Save as"><i class="fa-regular fa-floppy-disk"></i></button>
+                    <input type="file" id="file-open" accept=".txt,text/plain" hidden>
                     <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
                     <button id="btn-help" class="btn-text" title="Snippet Library"><i class="fa-solid fa-book"></i></button>
                     <button id="btn-theme" class="btn-text" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
                     <button id="btn-jump-top" class="btn-text" title="Top of everything (all three panes)"><i class="fa-solid fa-angles-up"></i></button>
                     <button id="btn-jump-bottom" class="btn-text" title="Bottom of everything (all three panes)"><i class="fa-solid fa-angles-down"></i></button>
                     <div style="width: 1px; height: 20px; background: var(--border); margin: 0 5px;"></div>
-                    <button id="btn-clear" class="btn-text text-danger" title="Clear Editor"><i class="fa-solid fa-trash"></i></button>
+                    <button id="btn-clear" class="btn-text text-danger" title="New (clear the editor)"><i class="fa-solid fa-trash"></i></button>
                     <button id="btn-fix-chars" class="btn-text char-warning" hidden title="Curly quotes, dashes and invisible spaces (often pasted from Word or PDFs) get garbled by Form.io. Click to replace them all with plain versions."></button>
                 </div>
             </div>
-            <!-- Ace shorthand editor -->
             <div id="shorthand-input"></div>
         </section>
 
-        <!-- DRAG RESIZER -->
         <div class="resizer" id="drag-resizer"></div>
 
-        <!-- RIGHT: OUTPUT -->
         <section class="editor-panel">
             <div class="panel-header">
                 <div class="pane-title">Generated JSON</div>
@@ -52,14 +47,11 @@
                     </div>
                 </div>
             </div>
-            <!-- Ace Editor Container -->
             <div id="json-editor"></div>
         </section>
 
-        <!-- PREVIEW RESIZER -->
         <div class="resizer hidden" id="preview-resizer"></div>
 
-        <!-- PREVIEW: collapsed strip or resizable third column -->
         <section class="preview-pane collapsed" id="preview-pane">
             <button id="btn-preview-open" class="preview-strip" title="Open Form Preview">
                 <span>Preview</span>
@@ -75,34 +67,12 @@
         </section>
     </main>
 
-    <!-- PHONES: one pane at a time, picked from this bar (hidden on wider screens) -->
     <nav class="mobile-tabs" id="mobile-tabs">
         <button data-tab="shorthand" class="active"><i class="fa-solid fa-pen"></i><span>Shorthand</span></button>
         <button data-tab="json"><i class="fa-solid fa-code"></i><span>JSON</span></button>
         <button data-tab="preview"><i class="fa-solid fa-eye"></i><span>Preview</span></button>
     </nav>
 
-    <!-- Favorites Modal -->
-    <div id="fav-modal" class="modal-overlay hidden">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h2><i class="fa-solid fa-star"></i> My Favorites</h2>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="file" id="file-import-favs" accept=".json" style="display: none;">
-                    <button id="btn-import-favs" class="btn-primary" style="font-size: 12px; padding: 4px 8px;" title="Import Favorites Backup"><i class="fa-solid fa-upload"></i> Import</button>
-                    <button id="btn-export-favs" class="btn-primary" style="font-size: 12px; padding: 4px 8px;" title="Export Favorites Backup"><i class="fa-solid fa-download"></i> Export</button>
-                    <button id="btn-close-fav" class="btn-icon" title="Close" style="margin-left: 10px;"><i class="fa-solid fa-xmark"></i></button>
-                </div>
-            </div>
-            <div class="modal-body">
-                <div id="fav-list" style="display: flex; flex-direction: column; gap: 8px;">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Snippet Library Modal -->
     <div id="snippet-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -193,7 +163,6 @@
         </div>
     </div>
 
-    <!-- Ace Editor CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-language_tools.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ext-searchbox.js"></script>

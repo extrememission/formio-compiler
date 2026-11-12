@@ -1,30 +1,20 @@
-// --- Fillable PDF: a "Download PDF" button for the Form.io Compiler ---
-// Turns the compiled form (the same components the Preview shows) into a fillable PDF: text boxes, checkboxes,
-// radio buttons and dropdowns that anyone can fill in with a PDF reader. Each PDF field is named after its
-// component's key, so filled-in data lines up with the Form.io schema.
-// Self-contained: adds its own button to the JSON pane, loads pdf-lib on first use, and only READS the compiler's
-// output (lastComponents, formTitle, pdfLeaveOut, pdfRows). It changes nothing else in the app.
-// Paper rules: fields that only show on a condition print with an "If ...:" line; every [repeat] copy prints
-// (so [repeat: 3] = 3 copies) without its "Add another?" boxes; Edit Grids print as fillable tables.
 (function () {
 'use strict';
 
 const PDF_LIB_CDN = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
-const GRID_ROWS = 5; // blank rows printed for each Edit Grid / Data Grid (~rows: N under the grid overrides it)
+const GRID_ROWS = 5;
 
-// --- Text: the PDF's built-in Helvetica only has Western European characters (WinAnsi) ---
 const WINANSI_EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 const SWAP = { '‐': '-', '‑': '-', '‒': '-', '―': '-', '−': '-', '⁃': '-',
     '′': "'", '″': '"', '‛': "'", '‟': '"', '\t': ' ' };
 
-// Anything Helvetica can't draw becomes a plain look-alike, a space, nothing (invisible characters) or "?"
 function T(s) {
     let out = '';
     for (const ch of String(s == null ? '' : s)) {
         const code = ch.codePointAt(0);
         if (ch === '\n') out += ch;
         else if (code === 160) out += ' ';
-        else if (code === 173) continue; // soft hyphen
+        else if (code === 173) continue;
         else if ((code >= 32 && code <= 126) || (code >= 161 && code <= 255)) out += ch;
         else if (WINANSI_EXTRA.includes(ch)) out += ch;
         else if (SWAP[ch] !== undefined) out += SWAP[ch];
@@ -35,7 +25,6 @@ function T(s) {
     return out;
 }
 
-// Content / HTML components → plain text with line breaks
 function htmlToText(html) {
     return String(html || '')
         .replace(/<\s*br\s*\/?>/gi, '\n')
@@ -47,7 +36,6 @@ function htmlToText(html) {
         .replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// Word-wrap to a width; words longer than a whole line are split
 function wrap(text, font, size, width) {
     const out = [];
     String(text).split('\n').forEach(para => {
@@ -79,25 +67,20 @@ const kids = (c) => [c.components || [],
     ...(c.columns || []).map(col => col.components || []),
     ...(Array.isArray(c.rows) ? c.rows : []).flatMap(r => (r || []).map(cell => (cell && cell.components) || []))];
 
-// Keys the compiler says can't work on paper (SUMMARY / LIST BY / LOG reports); set for each build
 let leaveOut = new Set();
 
-// Parts of the compiled form that only make sense live in Form.io
 function skip(c) {
     if (!c || c.hidden) return true;
     if (c.type === 'hidden' || c.type === 'button') return true;
-    if (leaveOut.has(c.key)) return true;                                          // reports
-    if (/\bno-print\b/.test(c.customClass || '')) return true;                  // [print]
-    if (/^addAnother_/.test(c.key || '')) return true;                           // [repeat]'s "Add another?" boxes: every copy is printed
-    if (c.type === 'htmlelement' && /\{%|\{\{/.test(c.content || '')) return true; // [chart], [allfields] ~htmlElement
-    if (c.type === 'content' && /\{\{/.test(c.html || '')) return true;          // [allfields]
-    if ((c.components || []).some(k => k && k.type === 'hidden' && /__formioDiag/.test(k.customConditional || ''))) return true; // [diagnostics]
+    if (leaveOut.has(c.key)) return true;
+    if (/\bno-print\b/.test(c.customClass || '')) return true;
+    if (/^addAnother_/.test(c.key || '')) return true;
+    if (c.type === 'htmlelement' && /\{%|\{\{/.test(c.content || '')) return true;
+    if (c.type === 'content' && /\{\{/.test(c.html || '')) return true;
+    if ((c.components || []).some(k => k && k.type === 'hidden' && /__formioDiag/.test(k.customConditional || ''))) return true;
     return false;
 }
 
-// --- Build the PDF from the compiled components ---
-// opts: { leaveOut: Set of keys to skip, rows: Map of grid key → blank rows,
-//         page: 'letter' (default) | 'long' (one long Letter-wide page) | 'phone' (one long phone-width page) }
 async function buildFormPdf(PDFLib, components, title, opts) {
     opts = opts || {};
     leaveOut = opts.leaveOut instanceof Set ? opts.leaveOut : new Set();
@@ -115,9 +98,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         fill: rgb(0.96, 0.97, 0.99), head: rgb(0.91, 0.93, 0.96), bar: rgb(0.12, 0.33, 0.58),
         white: rgb(1, 1, 1), red: rgb(0.8, 0.15, 0.2)
     };
-    // Sizes in points (72 = 1 inch). Letter: 8.5 x 11 pages. Long: Letter width, one page as tall as the form (PDF's
-    // limit is 200 in = 14400 pt; a longer form continues on a second long page), trimmed to the content at the end.
-    // Phone: the same, 4 in wide with small margins, so text reads at normal size on a phone; tables stack row by row.
     const phone = opts.page === 'phone';
     const long = phone || opts.page === 'long';
     const PAGE_W = phone ? 288 : 612, PAGE_H = long ? 14400 : 792, M = phone ? 16 : 48;
@@ -127,7 +107,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
     const need = (h) => { if (st.y - h < BOTTOM && st.y < TOP) newPage(); };
     newPage();
 
-    // Every component by key, and the one just before it in its list (for "If ...:" lines)
     const byKey = new Map(), prevKey = new Map();
     const index = (list) => (list || []).forEach((c, i) => {
         if (!c) return;
@@ -136,11 +115,9 @@ async function buildFormPdf(PDFLib, components, title, opts) {
     });
     index(components);
 
-    // A field that only shows on a condition: paper can't hide it, so say when it applies.
-    // "If Hazard Type is Other:"; right under its question just "If Other:" (Bulk Mode notes)
     function condText(c) {
         const cond = c && c.conditional;
-        if (!cond || !cond.when || /^addAnother_/.test(cond.when)) return ''; // [repeat] copies all print
+        if (!cond || !cond.when || /^addAnother_/.test(cond.when)) return '';
         const target = byKey.get(cond.when);
         if (!target) return '';
         const not = String(cond.show) === 'false';
@@ -153,7 +130,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return T(near ? `If ${not ? 'not ' : ''}${what}:` : `If ${target.label || cond.when} is ${not ? 'not ' : ''}${what}:`);
     }
 
-    // Field names must be unique; a period would nest fields, so it's replaced
     const usedNames = new Set();
     const fieldName = (base) => {
         const clean = String(base || 'field').replace(/[.\s]+/g, '_');
@@ -162,13 +138,11 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         usedNames.add(name);
         return name;
     };
-    // Tooltip shown when hovering a field (also read by screen readers)
-    const tip = (field, text) => { try { if (text) field.acroField.dict.set(PDFName.of('TU'), PDFHexString.fromText(text)); } catch (e) { /* cosmetic only */ } };
+    const tip = (field, text) => { try { if (text) field.acroField.dict.set(PDFName.of('TU'), PDFHexString.fromText(text)); } catch (e) { } };
     const look = { borderColor: C.line, borderWidth: 0.75, backgroundColor: C.fill, textColor: C.ink };
     const txt = (s, x, y, size, font, color) => { if (s) st.page.drawText(s, { x, y, size, font, color }); };
     const isReq = (c) => !!(c && c.validate && c.validate.required);
 
-    // Lines with an optional red * at the end
     function drawLines(lines, x, top, size, font, color, lh, star) {
         lines.forEach((l, i) => {
             const y = top - size - i * lh;
@@ -210,7 +184,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         tf.setFontSize(10);
         const def = c && c.defaultValue;
         if (!multiline && c && !c.calculateValue && (typeof def === 'string' || typeof def === 'number') && String(def) !== '') {
-            try { tf.setText(T(String(def)).slice(0, max > 0 ? max : undefined)); } catch (e) { /* leave blank */ }
+            try { tf.setText(T(String(def)).slice(0, max > 0 ? max : undefined)); } catch (e) { }
         }
         tip(tf, tipText || T(c && c.label));
         return tf;
@@ -224,7 +198,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return cb;
     }
 
-    // Radio / checkbox-list choices: in one row when they fit, otherwise one per line
     function choicesBlock(c, opts, x, w, top, draw, make) {
         const S = 9.5, ROW = 15, BOX = 11;
         const items = opts.map(o => { const t = T(o.label); return { o, t, tw: F.reg.widthOfTextAtSize(t, S) }; });
@@ -256,7 +229,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
 
     const uniqueByValue = (opts) => { const seen = new Set(); return opts.filter(o => o && !seen.has(String(o.value)) && seen.add(String(o.value))); };
 
-    // One field with its "If ...:" line (when it only shows on a condition). Returns its height; draws only when draw is true.
     function leaf(c, x, w, top, draw) {
         const cond = condText(c);
         const ch = cond ? textBlock(cond, x, w, top, draw, F.ital, 8.5, C.muted) + 2 : 0;
@@ -264,7 +236,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return h ? ch + h : 0;
     }
 
-    // One field (label, box, description)
     function leafBody(c, x, w, top, draw) {
         const type = c.type;
 
@@ -291,10 +262,10 @@ async function buildFormPdf(PDFLib, components, title, opts) {
             return bh + descBlock(c, x, w, top - bh, draw);
         }
 
-        if (!c.input && !['signature', 'file'].includes(type)) return 0; // layout pieces this doesn't know
+        if (!c.input && !['signature', 'file'].includes(type)) return 0;
 
         const lh = labelBlock(c, x, w, top, draw);
-        const y = top - lh; // top of the field itself
+        const y = top - lh;
         let bh = 20;
 
         if (type === 'textarea') {
@@ -311,7 +282,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
                     group.addOptionToPage(String(o.value), st.page, Object.assign({ x: ox, y: oy, width: s, height: s }, look));
                 }) + 2;
                 if (draw && group && c.defaultValue !== undefined && opts.some(o => String(o.value) === String(c.defaultValue))) {
-                    try { group.select(String(c.defaultValue)); } catch (e) { /* leave blank */ }
+                    try { group.select(String(c.defaultValue)); } catch (e) { }
                 }
             } else {
                 const def = c.defaultValue && typeof c.defaultValue === 'object' ? c.defaultValue : {};
@@ -322,7 +293,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         } else if (type === 'select') {
             const opts = uniqueByValue((c.data && c.data.values) || []);
             const labels = [...new Set(opts.map(o => T(o.label)).filter(Boolean))];
-            if (!labels.length) { // [fs...] lookups get their choices from the platform: a plain text box here
+            if (!labels.length) {
                 if (draw) textField(c, c.key, x, y - bh, Math.min(w, 260), bh, false);
             } else {
                 const widest = Math.max(...labels.map(l => F.reg.widthOfTextAtSize(l, 10)));
@@ -335,7 +306,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
                     field.addToPage(st.page, Object.assign({ x, y: y - bh, width: fw, height: bh, font: F.reg }, look));
                     field.setFontSize(10);
                     const pick = opts.find(o => String(o.value) === String(c.defaultValue));
-                    if (pick) { try { field.select(T(pick.label)); } catch (e) { /* leave blank */ } }
+                    if (pick) { try { field.select(T(pick.label)); } catch (e) { } }
                     tip(field, T(c.label));
                 }
             }
@@ -352,7 +323,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
             bh = 13;
             if (draw) txt('(Attach files separately)', x, y - 10, 9, F.ital, C.muted);
         } else {
-            // One-line box: text, email, phone, number, currency, date/time, and anything else that takes input
             const narrow = { number: 180, currency: 180, phoneNumber: 180, datetime: 170, day: 170, time: 170 }[type];
             const pre = T(c.prefix || (type === 'currency' ? '$' : ''));
             const suf = T(c.suffix || '');
@@ -375,8 +345,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return lh + bh + descBlock(c, x, w, y - bh, draw);
     }
 
-    // --- Flow: places components down the page, starting new pages as needed ---
-    function flowText(text, font, size, x, w, color) { // long Content blocks may run across pages
+    function flowText(text, font, size, x, w, color) {
         const lh = size * 1.3;
         wrap(text, font, size, w).forEach(l => { need(lh); txt(l, x, st.y - size, size, font, color || C.ink); st.y -= lh; });
         st.y -= GAP;
@@ -418,7 +387,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         const title = T(c.title || c.label || '');
         if (!title) return flow(c.components, x, w);
         const lines = wrap(title, F.bold, 11, w - 16), bar = lines.length * 13 + 8;
-        need(bar + 50); // keep the heading with what follows
+        need(bar + 50);
         st.page.drawRectangle({ x, y: st.y - bar, width: w, height: bar, color: C.bar });
         drawLines(lines, x + 8, st.y - 4, 11, F.bold, C.white, 13, false);
         st.y -= bar + 10;
@@ -438,8 +407,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         st.y -= 2;
     }
 
-    // Edit Grid / Data Grid: a fillable table, column widths as in the app. Checkbox columns get a tick box per row;
-    // money ($) columns get a Total box under them.
     function grid(c, x, w) {
         const cols = (c.components || []).filter(k => !skip(k) && k.input);
         const lh = labelBlock(c, x, w, 0, false);
@@ -492,8 +459,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         st.y -= dh + GAP;
     }
 
-    // Phone width: each table row becomes a small group ("Row 1", then each column's label and box, full width);
-    // checkbox columns are a tick box with the label beside it. Money ($) columns get a "Totals" group at the end.
     function gridStacked(c, cols, lh, x, w) {
         const BOX = 11, FIELD = 20;
         const itemH = (k) => k.type === 'checkbox' ? 17 : 13 + FIELD + 5;
@@ -529,11 +494,10 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         st.y -= dh + GAP;
     }
 
-    // Table rows and Columns: cells side by side, each a stack of fields; a row never splits across pages
     const flatten = (list, out = []) => {
         (list || []).forEach(c => {
             if (skip(c)) return;
-            if (['editgrid', 'datagrid'].includes(c.type)) return; // too wide for a cell
+            if (['editgrid', 'datagrid'].includes(c.type)) return;
             const inner = kids(c).flat();
             if (inner.length) flatten(inner, out); else out.push(c);
         });
@@ -545,7 +509,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         return h ? h - GAP : 0;
     };
     function cellsRow(rows, widths, x, w) {
-        if (phone) return rows.forEach(row => row.forEach(list => flow(list, x, w))); // too narrow for side by side: one under another
+        if (phone) return rows.forEach(row => row.forEach(list => flow(list, x, w)));
         const PAD = 8;
         rows.forEach(row => {
             const cells = row.map(list => flatten(list));
@@ -562,7 +526,6 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         });
     }
 
-    // --- Title, body, page numbers ---
     const docTitle = T(title || '');
     if (docTitle) {
         const lines = wrap(docTitle, F.bold, 16, PAGE_W - 2 * M);
@@ -573,15 +536,13 @@ async function buildFormPdf(PDFLib, components, title, opts) {
         doc.setTitle(docTitle);
     }
 
-    // Wizard forms ("=== Page:" lines): the compiler's pages are top-level panels; each starts a new PDF page
     const isWizard = components.length > 1 && components.every(c => c && c.type === 'panel' && !c.theme && Array.isArray(c.components));
     if (isWizard && !long) components.forEach((p, i) => { if (i > 0 && st.y < TOP) newPage(); flow([p], M, PAGE_W - 2 * M); });
     else flow(components, M, PAGE_W - 2 * M);
 
-    // Long mode: trim the last page to where the form ends (the visible page starts at "bottom")
     const pages = doc.getPages();
     const last = pages[pages.length - 1];
-    const FOOT = phone ? 8 : M - 20; // footer line, up from the page's bottom edge
+    const FOOT = phone ? 8 : M - 20;
     const lastBottom = long ? Math.max(0, Math.floor(st.y - (phone ? 26 : M))) : 0;
     if (lastBottom > 0) { last.setMediaBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); last.setCropBox(0, lastBottom, PAGE_W, PAGE_H - lastBottom); }
     pages.forEach((p, i) => {
@@ -594,13 +555,11 @@ async function buildFormPdf(PDFLib, components, title, opts) {
 
     doc.setProducer('Form.io Compiler (pdf-lib)');
     doc.setCreator('Form.io Compiler');
-    return doc.save(); // also draws every field's appearance, so the PDF looks right in any reader
+    return doc.save();
 }
 
-// For testing outside the browser
 if (typeof module === 'object' && module.exports) module.exports = { buildFormPdf, T, htmlToText };
 
-// --- Browser: the button ---
 if (typeof document === 'undefined') return;
 
 let libPromise = null;
@@ -613,10 +572,8 @@ const loadPdfLib = () => libPromise || (libPromise = new Promise((resolve, rejec
     document.head.appendChild(s);
 }));
 
-// Reads the compiler's latest output (app.js globals); never writes to them
 function compiledForm() {
     try {
-        /* global lastComponents, formTitle, pdfLeaveOut, pdfRows, pdfPage */
         return {
             components: lastComponents || [],
             title: typeof formTitle === 'string' ? formTitle : '',
@@ -627,20 +584,16 @@ function compiledForm() {
             }
         };
     } catch (e) {
-        return null; // app.js not loaded
+        return null;
     }
 }
 
-// The current form as PDF bytes (the button, and the compiler's Preview in PDF mode)
 async function currentPdf() {
     const src = compiledForm();
     if (!src) throw new Error('The compiler (app.js) needs to load before pdf.js.');
     const PDFLib = await loadPdfLib();
     return buildFormPdf(PDFLib, JSON.parse(JSON.stringify(src.components)), src.title, src.opts);
 }
-// Lock a FILLED PDF: flatten its fields so the answers become plain page content that can't be edited as a form.
-// Appearances are redrawn from the saved values first; if that fails (e.g. characters Helvetica lacks), the
-// reader's own drawing of each field is kept instead.
 async function lockPdf(bytes) {
     const PDFLib = await loadPdfLib();
     let doc;
@@ -656,34 +609,6 @@ async function lockPdf(bytes) {
     return doc.save();
 }
 window.FormioPdf = { build: currentPdf, lock: lockPdf };
-
-// Same naming rule as Download: "# Title" line, else the first panel / field set / label
-function pdfFileName(src) {
-    const first = src.components[0] || {};
-    const name = String(src.title || first.title || first.legend || first.label || 'form')
-        .replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form';
-    return name + '.pdf';
-}
-
-async function savePdf(bytes, name) {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-        || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-    if (isMobile && navigator.canShare) {
-        const file = new File([bytes], name, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [file] })) {
-            try { await navigator.share({ files: [file], title: name }); return; }
-            catch (e) { if (e && e.name === 'AbortError') return; } // dismissed; any other failure falls back to a download
-        }
-    }
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
 
 function addButton() {
     const anchor = document.getElementById('btn-download');
@@ -703,7 +628,7 @@ function addButton() {
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
         try {
-            await savePdf(await currentPdf(), pdfFileName(src));
+            await downloadFile(await currentPdf(), formFileName() + '.pdf', 'application/pdf');
         } catch (err) {
             console.error(err);
             alert('Could not create the PDF: ' + ((err && err.message) || err));
@@ -714,7 +639,6 @@ function addButton() {
     });
 }
 
-// "Lock PDF": pick a filled-in PDF, get back a flattened copy named "<name> - locked.pdf"
 function addLockButton() {
     const anchor = document.getElementById('btn-pdf');
     if (!anchor || document.getElementById('btn-pdf-lock')) return;
@@ -740,7 +664,7 @@ function addLockButton() {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
         try {
             const bytes = await lockPdf(new Uint8Array(await file.arrayBuffer()));
-            await savePdf(bytes, file.name.replace(/\.pdf$/i, '') + ' - locked.pdf');
+            await downloadFile(bytes, file.name.replace(/\.pdf$/i, '') + ' - locked.pdf', 'application/pdf');
         } catch (err) {
             console.error(err);
             alert('Could not lock the PDF: ' + ((err && err.message) || err));

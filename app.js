@@ -1,39 +1,29 @@
-// --- State ---
 let isDarkTheme = true;
 let currentFontSize = 14;
 
-// --- DB (IndexedDB) ---
-let db;
-const defaultTemplates = [
+const templates = [
     {
-        name: "Template: 10-Question T/F Quiz",
-        date: "System Default",
+        name: "10-Question T/F Quiz",
         shorthand: "[panel] True or False Quiz\n+++ ![radio]\n- True\n- False\n1. Question One\n2. Question Two\n3. Question Three\n4. Question Four\n5. Question Five\n6. Question Six\n7. Question Seven\n8. Question Eight\n9. Question Nine\n10. Question Ten\n+++"
     },
     {
-        name: "Template: General Acknowledgement",
-        date: "System Default",
+        name: "General Acknowledgement",
         shorthand: "[panel] General Acknowledgement\n[content] <p style=\"margin-bottom: 15px;\">By checking the box below and providing my signature, I formally acknowledge that I have received, read, and fully understand the contents of this document. I agree to abide by the guidelines, procedures, and expectations outlined herein, and I understand that it is my responsibility to seek clarification on any points I do not understand.</p>\n![checkbox] I have read and understand the contents of this document.\n![signature] Employee Signature\n![date] Date Signed"
     },
     {
-        name: "Template: Jobsite Hazard Assessment",
-        date: "System Default",
+        name: "Jobsite Hazard Assessment",
         shorthand: "[panel] Jobsite Hazard Assessment (JHA)\n[textfield] Project Name\n[textfield] Job Location\n![date] Date of Assessment\n![textfield] Supervisor / Competent Person\n\n[well] Required PPE\n[selectboxes] Personal Protective Equipment (PPE) Check\n- Hard Hat\n- Safety Glasses\n- Steel Toe Boots\n- High Visibility Vest\n- Gloves\n- Fall Protection\n- Hearing Protection\n\n[panel] Hazard Identification\n[content] <p>Please list the potential hazards identified for today's tasks and the control measures that will be implemented.</p>\n[repeat: 5] Hazard & Control Measure\n![textfield] Task / Activity\n![select] Hazard Type\n- Fall Hazard\n- Electrical\n- Struck-By\n- Caught-In/Between\n- Chemical / Hazardous Material\n- Ergonomic / Manual Lifting\n![textarea] Mitigation / Control Strategy\n\n\n[panel] Crew Sign-Off\n[content] <p>All crew members must sign below indicating they have been briefed on the hazards and controls.</p>\n[signature] Crew Member 1\n[signature] Crew Member 2\n[signature] Crew Member 3"
     },
     {
-        name: "Template: Time & Materials",
-        date: "System Default",
+        name: "Time & Materials",
         shorthand: "[panel] Time & Materials\n[textfield] Job Description\n![date] Work Date\n[fieldset] Labor\n![number] Labor Hours\n![currency] Hourly Rate\n[currency: =Labor Hours * Hourly Rate] Labor Total\n\n[fieldset] Materials\n[currency] Materials Cost\n[number: 0-100] Markup Percent\n[currency: =Materials Cost + Materials Cost * Markup Percent / 100] Materials Total\n\n[fieldset] Totals\n[currency: =Labor Total + Materials Total] Subtotal\n[number: 0-20] Tax Rate Percent\n[currency: =Subtotal * Tax Rate Percent / 100] Tax\n[currency: =Subtotal + Tax] Grand Total\n\n[chart: Labor Total, Materials Total, Tax] Cost Breakdown"
     },
     {
-        name: "Template: Service Record (T&M)",
-        date: "System Default",
+        name: "Service Record (T&M)",
         shorthand: "[panel] Materials & Parts Used\n[editgrid: Qty#(s), !Part # / Description(xl), Unit(s), Unit Price$, Ext. Price$] Materials\n= Ext. Price: Qty * Unit Price\n\n\n[panel] Labor & Other Charges\n[editgrid: !Labor / Charge Description(l), Hours#(s), Rate$, Amount$, Notes(l)] Labor\n= Amount: Hours * Rate\n\n\n[panel] Summary / Billing\n[textarea] Technician Recommendations\n[currency: =SUM(Ext. Price)] Materials Subtotal\n[currency: =SUM(Amount)] Labor Subtotal\n[currency] Travel / Equipment\n[currency] Other Charges\n[currency] Sales Tax\n[currency: =Materials Subtotal + Labor Subtotal + \"Travel / Equipment\" + Other Charges + Sales Tax] Total"
     },
     {
-        name: "Template: How-To: Formulas & Charts",
-        date: "System Default",
-        // Instructions are [content] cards (delete their lines when done); field hints are ~description lines
+        name: "How-To: Formulas & Charts",
         shorthand: [
             '[panel] How-To: Formulas & Charts',
             '~collapsible',
@@ -76,14 +66,11 @@ const defaultTemplates = [
         ].join('\n')
     },
     {
-        name: "Template: ~ Settings Showcase",
-        date: "System Default",
+        name: "~ Settings Showcase",
         shorthand: "[panel] ~ Settings Showcase\n~collapsible\n[content] <p>Every field here is customized with <strong>~ lines</strong>. Hover the ⓘ in the margin next to any ~ line to see what it does, or type <strong>~</strong> on a new line under any field to browse all of its settings.</p>\n[textfield] Full Name\n~placeholder: \"First and last name\"\n~tooltip: \"As it appears on your ID\"\n~validate.maxLength: 60\n~showCharCount\n![email] Email\n~description: \"We'll only use this for receipts\"\n[textfield] Employee ID\n~labelPosition: left-left\n~labelWidth: 25\n~prefix: \"#\"\n[number] Hours Worked\n~suffix: \"hrs\"\n~validate.min: 0\n~validate.max: 24\n[select] Department\n~widget: html5\n~placeholder: \"Choose a department\"\n- Field Operations\n- Service\n- Office\n[radio] Shift\n~inline\n- Day\n- Night\n- Weekend\n[textarea] Work Summary\n~rows: 4\n~showWordCount\n~validate.maxWords: 200\n[signature] Technician Signature\n~footer: \"Sign above the line\""
     },
     {
-        name: "Template: Fillable PDF Showcase",
-        date: "System Default",
-        // "#! pdf" = paper only: the Preview shows the PDF and the margin says what each line becomes on paper
+        name: "Fillable PDF Showcase",
         shorthand: [
             '# Equipment Inspection',
             '#! pdf',
@@ -103,7 +90,7 @@ const defaultTemplates = [
             'Emergency stop works?',
             'Fluid levels correct?',
             '+++',
-            '!@[radio] Overall Condition', // radio, not select: a dropdown's choices can't be seen on printed paper
+            '!@[radio] Overall Condition',
             '- Good',
             '- Needs Repair',
             '- Out of Service',
@@ -127,9 +114,7 @@ const defaultTemplates = [
         ].join('\n')
     },
     {
-        name: "Template: Mobile PDF (Phone)",
-        date: "System Default",
-        // "#! pdf phone" = one long phone-width page: scrolls and fills like a web form on a phone (tables stack by row)
+        name: "Mobile PDF (Phone)",
         shorthand: [
             '# Daily Field Report',
             '#! pdf phone',
@@ -165,41 +150,13 @@ const defaultTemplates = [
         ].join('\n')
     },
     {
-        name: "Template: Upload Diagnostics",
-        date: "System Default",
+        name: "Upload Diagnostics",
         shorthand: "# Upload Diagnostics\n[print]\n[panel] Upload Diagnostics\n![textfield] Company\n![textfield] Your Name\n[diagnostics] Device, Connection & Photo Test\n[textarea] Anything else we should know?\n~placeholder: \"What happens when uploads fail? Which device, where, how often?\""
     }
 ];
 
-const initDB = () => {
-    // Bump the version whenever defaultTemplates change so existing installs get refreshed copies
-    const request = indexedDB.open('FormioCompilerDB', 11);
-    request.onupgradeneeded = (e) => {
-        db = e.target.result;
-        if (!db.objectStoreNames.contains('favorites')) {
-            const store = db.createObjectStore('favorites', { keyPath: 'id', autoIncrement: true });
-            defaultTemplates.forEach(template => store.add(template));
-            return;
-        }
-        // Existing DB: replace old system templates, leave user favorites untouched
-        const store = e.target.transaction.objectStore('favorites');
-        store.openCursor().onsuccess = (ev) => {
-            const cursor = ev.target.result;
-            if (cursor) {
-                if (cursor.value.date === 'System Default') cursor.delete();
-                cursor.continue();
-            } else {
-                defaultTemplates.forEach(template => store.add(template));
-            }
-        };
-    };
-    request.onsuccess = (e) => { db = e.target.result; };
-};
-initDB();
-
-// --- Init Ace Editor ---
 const editor = ace.edit("json-editor");
-editor.setTheme("ace/theme/tomorrow_night"); // Neutral dark, black-based
+editor.setTheme("ace/theme/tomorrow_night");
 editor.session.setMode("ace/mode/json");
 editor.setReadOnly(true);
 editor.setOptions({
@@ -209,7 +166,6 @@ editor.setOptions({
     useWorker: false
 });
 
-// --- Shorthand Editor (Ace: autocomplete, Tab placeholders, highlighting) ---
 const Range = ace.require('ace/range').Range;
 const shorthand = ace.edit('shorthand-input');
 shorthand.setTheme("ace/theme/tomorrow_night");
@@ -225,7 +181,6 @@ shorthand.setOptions({
 });
 shorthand.renderer.setScrollMargin(12, 12);
 
-// --- Theme & Font Toggles ---
 document.getElementById('btn-theme').addEventListener('click', () => {
     isDarkTheme = !isDarkTheme;
     document.body.className = isDarkTheme ? 'theme-dark' : 'theme-light';
@@ -244,7 +199,6 @@ document.getElementById('btn-font-dec').addEventListener('click', () => {
     editor.setFontSize(currentFontSize + "px");
 });
 
-// --- Layout: Drag Resizers & Preview Column (remembered per browser) ---
 const layout = { leftWidth: null, previewWidth: null, previewOpen: false };
 try { Object.assign(layout, JSON.parse(localStorage.getItem('layout')) || {}); } catch (e) {}
 const saveLayout = () => { try { localStorage.setItem('layout', JSON.stringify(layout)); } catch (e) {} };
@@ -252,7 +206,7 @@ const saveLayout = () => { try { localStorage.setItem('layout', JSON.stringify(l
 const leftPane = document.getElementById('left-pane');
 const previewPane = document.getElementById('preview-pane');
 const previewResizer = document.getElementById('preview-resizer');
-const MIN_PANE = 120; // narrowest a pane can be dragged (matches min-width in global.css)
+const MIN_PANE = 120;
 
 function applyLayout() {
     if (layout.leftWidth) {
@@ -262,7 +216,6 @@ function applyLayout() {
     previewPane.classList.toggle('collapsed', !layout.previewOpen);
     previewResizer.classList.toggle('hidden', !layout.previewOpen);
     if (layout.previewOpen) {
-        // Keep at least MIN_PANE for the JSON pane if the window got smaller since last visit
         const maxPreview = window.innerWidth - leftPane.offsetWidth - MIN_PANE;
         previewPane.style.width = Math.max(MIN_PANE, Math.min(layout.previewWidth, maxPreview)) + 'px';
     } else {
@@ -278,7 +231,7 @@ function makeResizer(resizer, onMove) {
         isResizing = true;
         document.body.style.cursor = 'col-resize';
         resizer.style.background = 'var(--accent)';
-        if (previewFrame) previewFrame.style.pointerEvents = 'none'; // iframe would swallow mousemove
+        if (previewFrame) previewFrame.style.pointerEvents = 'none';
         e.preventDefault();
     });
     document.addEventListener('mousemove', (e) => {
@@ -312,8 +265,6 @@ makeResizer(previewResizer, (x) => {
     }
 });
 
-// --- Form Preview (Form.io open-source renderer in an iframe) ---
-// Demo options so fs lookup selects aren't empty in the preview; never added to the copied JSON
 const previewDemoValues = {
     fsworkers: ['John Smith', 'Maria Garcia', 'David Chen', 'Aisha Patel', 'Robert Johnson'],
     fsproject: ['Main Street Renovation', 'Riverside Office Tower', 'Highway 9 Overpass', 'Lakeview Apartments', 'North Plant Expansion'],
@@ -384,8 +335,6 @@ function previewSchema() {
             c.dataSrc = 'values';
             c.data = { values: opts.map(o => ({ label: o, value: o })) };
         }
-        // File fields get in-browser storage in the Preview only (the app sets real storage), so there's no
-        // "No storage has been set" message and uploads can be tried out
         if (c.type === 'file' && !c.storage) c.storage = 'base64';
         childListsOf(c).forEach(addDemo);
     });
@@ -405,10 +354,9 @@ function sendPreview() {
 
 function schedulePreview() {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(sendPreview, pdfMode ? 1200 : 400); // a PDF takes longer to rebuild
+    previewTimer = setTimeout(sendPreview, pdfMode ? 1200 : 400);
 }
 
-// PDF mode ("#! pdf"): the Preview shows the fillable PDF itself (built by pdf.js) in the browser's PDF viewer
 let pdfPreviewFrame = null, pdfPreviewUrl = null, pdfPreviewRun = 0;
 function sendPdfPreview() {
     if (!pdfPreviewFrame) {
@@ -421,7 +369,7 @@ function sendPdfPreview() {
     pdfPreviewFrame.style.display = '';
     const run = ++pdfPreviewRun;
     window.FormioPdf.build().then(bytes => {
-        if (run !== pdfPreviewRun) return; // a newer build is on its way
+        if (run !== pdfPreviewRun) return;
         const old = pdfPreviewUrl;
         pdfPreviewUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
         pdfPreviewFrame.removeAttribute('srcdoc');
@@ -451,7 +399,6 @@ window.addEventListener('message', (e) => {
     }
 });
 
-// Show the synced component in the Preview (it's outlined and scrolled to once the form has drawn)
 function focusPreview() {
     if (previewFrame && previewReady && layout.previewOpen && lastSyncKey) {
         previewFrame.contentWindow.postMessage({ type: 'focus', key: lastSyncKey, center: true }, '*');
@@ -460,7 +407,6 @@ function focusPreview() {
 
 document.getElementById('btn-preview-open').addEventListener('click', () => {
     if (!layout.previewWidth) {
-        // First open: split the window into thirds
         const third = Math.round(window.innerWidth / 3);
         layout.previewWidth = third;
         if (!layout.leftWidth) layout.leftWidth = third;
@@ -481,21 +427,19 @@ document.getElementById('btn-preview-close').addEventListener('click', () => {
 applyLayout();
 if (layout.previewOpen) ensurePreviewFrame();
 
-// --- Phones: one pane at a time, picked from the tab bar at the bottom (global.css hides the rest) ---
 const phoneQuery = window.matchMedia('(max-width: 767px)');
 const tabButtons = document.querySelectorAll('#mobile-tabs button');
 function showTab(tab) {
     document.body.dataset.tab = tab;
     tabButtons.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     if (tab === 'preview') {
-        layout.previewOpen = true; // not saved: the desktop layout keeps its own choice
+        layout.previewOpen = true;
         ensurePreviewFrame();
         sendPreview();
         focusPreview();
     }
-    // A pane that was hidden has no size: redraw it, then bring the synced line back into view
     requestAnimationFrame(() => {
-        if (tab === 'shorthand') { shorthand.resize(true); shorthand.renderer.scrollCursorIntoView(null, 0.5); } // no focus: it would pop up the keyboard
+        if (tab === 'shorthand') { shorthand.resize(true); shorthand.renderer.scrollCursorIntoView(null, 0.5); }
         if (tab === 'json') { editor.resize(true); if (lastSyncKey) highlightJson(lastSyncKey, true); }
     });
 }
@@ -505,30 +449,25 @@ function applyPhoneLayout() {
     else {
         delete document.body.dataset.tab;
         try { layout.previewOpen = (JSON.parse(localStorage.getItem('layout')) || {}).previewOpen || false; } catch (e) {}
-        applyLayout(); // back to the saved desktop layout
+        applyLayout();
     }
 }
 phoneQuery.addEventListener('change', applyPhoneLayout);
 if (phoneQuery.matches) document.body.dataset.tab = 'shorthand';
 
-// --- Compiler Core Logic ---
-// Lookup selects: any [fs...] tag. The key IS the term (our app finds the endpoint from it).
 const lookupLabels = { fsworkers: 'Worker', fsproject: 'Project', fsequipment: 'Equipment', fscompany: 'Company', fsdivision: 'Division' };
-let usedLookupKeys = new Set(); // reset each compile; first use gets the plain key, repeats get a suffix
-const repeatFirstKey = new WeakMap(); // repeat group → key of its first copy's header, for cursor sync
-const asIsComps = new WeakSet(); // radio/select marked with @: choice values = labels exactly
-let compileWarnings = []; // { row, text } shown as ⚠ in the shorthand margin; reset each compile
-let formTitle = '';       // from a "# Title" line in the shorthand; '' when there isn't one
-let compileHints = [];    // { row, text } shown as ⓘ in the margin (e.g. how a formula was read)
-// Fillable PDF (pdf.js reads these; never in the JSON). PDF mode = a "#! pdf" line: the form is for paper only.
+let usedLookupKeys = new Set();
+const repeatFirstKey = new WeakMap();
+const asIsComps = new WeakSet();
+let compileWarnings = [];
+let formTitle = '';
+let compileHints = [];
 let pdfMode = false;
-let pdfPage = 'letter';      // "#! pdf long": one long Letter-wide page; "#! pdf phone": one long phone-wide page
-let pdfLeaveOut = new Set(); // keys that can't work on paper (SUMMARY / LIST BY / LOG reports)
-let pdfRows = new Map();     // Edit Grid key → blank table rows (~rows: N under the grid)
-const formulaOf = new WeakMap(); // component → its "=..." formula text, resolved to keys after the whole form is built
+let pdfPage = 'letter';
+let pdfLeaveOut = new Set();
+let pdfRows = new Map();
+const formulaOf = new WeakMap();
 
-// --- Edit Grid columns: [editgrid: !Item(xl), Qty#(s), Unit Price$, Line Total$] Materials ---
-// Attached $ = currency, attached # = number (so "Part #" stays text), ! = required, (s)/(l)/(xl) = width.
 const WIDTH_WEIGHTS = { s: 1, normal: 2, l: 3, xl: 5 };
 
 function parseGridColumns(columnsStr) {
@@ -540,19 +479,18 @@ function parseGridColumns(columnsStr) {
         const w = text.match(/\((s|l|xl)\)\s*$/i);
         if (w) { width = w[1].toLowerCase(); text = text.slice(0, w.index).trim(); }
         let type = 'textfield';
-        const marker = text.match(/[^\s]([$#?])$/); // attached ? = checkbox column ("Done?")
+        const marker = text.match(/[^\s]([$#?])$/);
         if (marker) { type = { $: 'currency', '#': 'number', '?': 'checkbox' }[marker[1]]; text = text.slice(0, -1).trim(); }
         return { label: text, type, required, width };
     });
 }
 
-// Split 10 Bootstrap units across the columns by weight (the last 2 of 12 hold the edit/delete buttons)
 function gridColumnUnits(columns) {
     const weights = columns.map(c => WIDTH_WEIGHTS[c.width]);
     const total = weights.reduce((a, b) => a + b, 0);
     const units = weights.map(w => Math.max(1, Math.round(w * 10 / total)));
     let diff = 10 - units.reduce((a, b) => a + b, 0);
-    while (diff !== 0) { // nudge the widest column until the row adds up exactly
+    while (diff !== 0) {
         const i = units.indexOf(Math.max(...units));
         if (diff < 0 && units[i] <= 1) break;
         units[i] += Math.sign(diff);
@@ -561,7 +499,6 @@ function gridColumnUnits(columns) {
     return units;
 }
 
-// Form.io's default Edit Grid templates, with per-column widths instead of col-sm-2 for every column
 function gridTemplates(widthByKey) {
     const w = JSON.stringify(widthByKey);
     return {
@@ -570,7 +507,6 @@ function gridTemplates(widthByKey) {
     };
 }
 
-// "= Line Total: Qty * Unit Price" on the line after a grid: a per-row calculated column (uses row.key)
 function addRowFormula(grid, text, row) {
     const m = text.match(/^=\s*(?:"([^"]+)"|([^:]+)):(.+)$/);
     if (!m) {
@@ -588,7 +524,6 @@ function addRowFormula(grid, text, row) {
     applyCalculation(column, expr, problems, row, `${column.label} = ${m[3].trim()} (each row)`);
 }
 
-// @ radio/select keep the label as the value; everything else gets a unique smart key
 const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, ' ');
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? asIsValue(opt) : generateSmartKey(opt);
 
@@ -614,7 +549,7 @@ function unrollRepeatGroup(groupDef) {
             tag: 'p',
             content: `${groupDef.label} (${i})`,
             key: generateSmartKey(`header_${groupKey}_${i}`),
-            properties: { repeatHeader: 'true' }, // [allfields] lists each copy under this heading
+            properties: { repeatHeader: 'true' },
             input: false,
             tableView: false
         };
@@ -626,10 +561,8 @@ function unrollRepeatGroup(groupDef) {
         groupDef.components.forEach(comp => {
             let clone = JSON.parse(JSON.stringify(comp));
             clone.key = `${clone.key}_${i}`;
-            clone.clearOnHide = false; // PREVENT DATA WIPE BUG IN EDIT MODE
+            clone.clearOnHide = false;
             if (clone.conditional && groupKeys.has(clone.conditional.when)) {
-                // Points at a sibling in this copy (e.g. bulk notes → its question): follow the renamed key.
-                // If the copy is hidden, its question is empty, so this stays hidden too.
                 clone.conditional = { ...clone.conditional, when: `${clone.conditional.when}_${i}` };
             } else if (condObj) {
                 clone.conditional = condObj;
@@ -645,7 +578,7 @@ function unrollRepeatGroup(groupDef) {
                 inputType: 'checkbox',
                 input: true,
                 tableView: false,
-                clearOnHide: false // PREVENT DATA WIPE BUG
+                clearOnHide: false
             };
             if (condObj) addCheckbox.conditional = condObj;
             results.push(addCheckbox);
@@ -671,7 +604,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
         if (type === 'fieldset') comp.legend = label;
         if (type === 'panel') {
-            comp.title = label; // text shown in the panel's header bar
+            comp.title = label;
             comp.theme = 'primary';
         }
 
@@ -701,7 +634,6 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
     if (type === 'content') return { type: 'content', html: label, key: generateSmartKey('content') };
     
     if (type === 'table') {
-        // [table: 2x3] = 2 rows × 3 columns (fixed); [table: 2] = 2 columns, rows added as fields fill them; [table] = 3×3
         let rows = 3, cols = 3, autoRows = false;
         if (choicesStr && /x/i.test(choicesStr)) {
             const parts = choicesStr.toLowerCase().split('x');
@@ -726,7 +658,6 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         const key = usedLookupKeys.has(type) ? generateSmartKey(type) : type;
         usedLookupKeys.add(type);
         const lookupLabel = label || lookupLabels[type] || type.charAt(2).toUpperCase() + type.slice(3);
-        // Deliberately minimal: no dataSrc / data values
         const lookup = { label: lookupLabel, key: key, type: 'select', placeholder: 'Type to select...', input: true, tableView: true };
         if (type === 'fscompany') lookup.multiple = true;
         if (isRequired) lookup.validate = { required: true };
@@ -737,7 +668,6 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
     if (isRequired) base.validate = { required: true };
     if (asIs && ['radio', 'select', 'selectboxes'].includes(type)) asIsComps.add(base);
 
-    // "[currency: =Hours * Rate] Total": a formula written with labels; keys are filled in later
     const formula = choicesStr && choicesStr.startsWith('=') ? choicesStr.slice(1).trim() : null;
     if (formula) {
         formulaOf.set(base, formula);
@@ -752,7 +682,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
         base.data = { values: optionsArray };
     } else if (type === 'textarea') {
-        base.autoExpand = true; // grows as people type, matching the Bulk Mode notes boxes (Form.io hides the drag handle)
+        base.autoExpand = true;
     } else if (type === 'checkbox') {
         base.inputType = 'checkbox';
     } else if (type === 'datetime' || type === 'date' || type === 'time') {
@@ -777,12 +707,11 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         base.minWidth = "0.5";
         base.maxWidth = "2.5";
     } else if (type === 'currency') {
-        // Shows $1,234.56; saves the plain number 1234.56 so it can be used in calculations
         base.currency = 'USD';
         base.delimiter = true;
         base.decimalLimit = 2;
         base.requireDecimal = true;
-    } else if (type === 'phonenumber') { // types arrive lowercased; Form.io's real type is camelCase
+    } else if (type === 'phonenumber') {
         base.type = 'phoneNumber';
         base.inputType = 'tel';
         base.inputMask = '(999) 999-9999';
@@ -794,10 +723,9 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
             base.validate = base.validate || {};
             base.validate.min = min;
             base.validate.max = max;
-            base.validate.step = "1"; // Forces whole numbers
+            base.validate.step = "1";
             base.validate.customMessage = "Please enter a number from " + min + " to " + max + ".";
             
-            // Auto-size the input based on the length of the maximum number
             let maxDigits = max.toString().length;
             if (maxDigits <= 2) {
                 base.customClass = "col-md-2";
@@ -813,7 +741,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
 }
 
 function parseComponentDef(str) {
-    const prefix = str.match(/^[!@]*/)[0]; // ! = required, @ = choice values as-is; either order
+    const prefix = str.match(/^[!@]*/)[0];
     const required = prefix.includes('!');
     const asIs = prefix.includes('@');
     const bracketMatch = str.match(/\[(.*?)\]/);
@@ -833,7 +761,6 @@ function parseComponentDef(str) {
     return { type, choices, required, asIs, label };
 }
 
-// Adds one "- choice" to a radio/selectboxes/select, flagging empty and (for @) duplicate choices
 function addChoice(comp, optText, row) {
     if (!['radio', 'selectboxes', 'select'].includes(comp.type)) return;
     if (!optText) {
@@ -849,8 +776,6 @@ function addChoice(comp, optText, row) {
     list.push({ label: optText, value: choiceValue(comp, optText) });
 }
 
-// Bulk notes: a notes box under a question. Conditional = adds the term as a choice that opens a required box;
-// always = an optional box with no extra choice. Hidden notes are kept (clearOnHide: false).
 function buildNotes(question, term, conditional) {
     const notes = { label: term, key: question.key + '_notes', type: 'textarea', autoExpand: true, input: true, tableView: true, clearOnHide: false };
     if (conditional) {
@@ -862,8 +787,6 @@ function buildNotes(question, term, conditional) {
     return notes;
 }
 
-// "Column" or "Grid.Column" → the grids that have it. Tries each period as the split,
-// because column names like "Ext. Price" contain periods too.
 function findGridColumn(target, grids) {
     const find = (gridLabel, colLabel) => (grids || []).filter(g => (!gridLabel || g.label === gridLabel) && g.cols.has(colLabel));
     let col = target.toLowerCase(), matches = find(null, col);
@@ -874,13 +797,11 @@ function findGridColumn(target, grids) {
     return { matches, col };
 }
 
-// Every list of child components a component holds: components, columns, and table cells
 const childListsOf = (c) => [c.components || [],
     ...(c.columns || []).map(col => col.components || []),
     ...(Array.isArray(c.rows) ? c.rows : []).flatMap(r => (r || []).map(cell => (cell && cell.components) || []))];
 
-// Tables are containers: each component typed under [table] fills the next cell, left to right, top to bottom
-const tableFill = new WeakMap(); // table → { next cell index, autoRows, warned }
+const tableFill = new WeakMap();
 function addToTable(table, comp, row) {
     const state = tableFill.get(table), cols = table.numCols;
     const r = Math.floor(state.next / cols), c = state.next % cols;
@@ -896,12 +817,8 @@ function addToTable(table, comp, row) {
     state.next++;
 }
 
-// The choice list of a radio / select / selectboxes component ([] for anything else)
 const choicesOf = (c) => (c && (c.type === 'select' ? (c.data && c.data.values) : c.values)) || [];
 
-// Turn a label-based formula into JavaScript for Form.io's calculateValue.
-// Tokens: SUM(Column) / SUM(Grid.Column) / SUM("Quoted"), "Quoted Label", numbers, + - * / ( ), and plain labels.
-// scope maps lowercase label → keys; grids lists editgrids for SUM; mode 'data' (form fields) or 'row' (inside a grid row).
 function translateFormula(formula, comp, scope, grids, mode) {
     const problems = [];
     const ref = (key) => `(Number(${mode}.${key}) || 0)`;
@@ -939,17 +856,14 @@ function translateFormula(formula, comp, scope, grids, mode) {
     return { expr: parts.join(' ') || '0', problems };
 }
 
-// Read-only calculated field; only currency rounds to cents
 function applyCalculation(comp, expr, problems, row, description) {
     const money = comp.type === 'currency';
     comp.calculateValue = money ? `value = Math.round((${expr}) * 100) / 100;` : `value = ${expr};`;
-    comp.disabled = true; // read-only: nobody types over a total
+    comp.disabled = true;
     if (problems.length) compileWarnings.push({ row, text: 'Formula problem: ' + problems.join('; ') });
     else compileHints.push({ row, text: `Calculated: ${description} (${money ? 'rounded to cents, ' : ''}read-only, updates live)` });
 }
 
-// Labels → keys for the whole built form, shared by formulas and charts.
-// Grid columns are only reachable through SUM(), not as plain labels.
 function buildLabelIndex(rootComponents) {
     const keysByLabel = new Map(), outputKeys = new Set(), compByKey = new Map(), grids = [];
     const walk = (list) => list.forEach(c => {
@@ -971,16 +885,7 @@ function buildLabelIndex(rootComponents) {
     return { keysByLabel, outputKeys, compByKey, grids };
 }
 
-// --- Text reports saved in the entry: SUMMARY (counts), LIST BY (grouped list), LOG (one line per entry) ---
-// Fields are found by label across every [repeat] copy. The *Text functions run inside the form
-// (their source is embedded in calculateValue), so they use plain ES5.
-
-// fs lookups save whatever the app's endpoint gives (maybe just an ID). A hidden twin copies the name the
-// lookup DISPLAYS into the entry as text, and reports read that.
 const isLookup = (c) => !!c && c.type === 'select' && !c.dataSrc && String(c.key).startsWith('fs');
-// The name a lookup DISPLAYS, as plain text. Only when something is actually picked (an empty lookup can still
-// display a placeholder, which would make unused [repeat] copies look like entries). getView returns display HTML
-// (<span>John Smith</span>): keep the text.
 const lookupNameCalc = (lookupKey) => "var w = instance.root.getComponent('" + lookupKey + "'); var box = document.createElement('div'); " +
     "box.innerHTML = w && !w.isEmpty(w.dataValue) ? String(w.getView(w.dataValue) || '') : ''; value = box.textContent.trim();";
 function ensureNameCopy(lookup, rootComponents, done) {
@@ -993,7 +898,6 @@ function ensureNameCopy(lookup, rootComponents, done) {
     return nameKey;
 }
 
-// One report field: every copy's key (name twins for lookups), its kind, and value → label for choices
 function reportField(label, ctx) {
     const keys = ctx.keysByLabel.get(label.toLowerCase()) || [];
     if (!keys.length) return { error: `no field labeled "${label}"` };
@@ -1010,8 +914,6 @@ function reportField(label, ctx) {
 }
 const splitLabels = (s) => (s.match(/("[^"]*"|[^,])+/g) || []).map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
 
-// SUMMARY: per field, each value with count and %, most frequent first, zeros hidden.
-// Fields with a choice list count those choices; others (e.g. worker names) count whatever was entered.
 function summaryText(sections, data) {
     var lines = [];
     sections.forEach(function (s) {
@@ -1049,7 +951,6 @@ function summaryText(sections, data) {
     return lines.join('\n').trim();
 }
 
-// LIST BY (grouped under the first field) and LOG (one line per entry, oldest first) over aligned records
 function reportText(mode, title, fields, records, data) {
     var show = function (f, k) {
         var x = k ? data[k] : '';
@@ -1066,7 +967,7 @@ function reportText(mode, title, fields, records, data) {
     var dateCol = -1;
     fields.forEach(function (f, i) { if (dateCol === -1 && f.kind === 'date') dateCol = i; });
     if (dateCol !== -1) rows.sort(function (a, b) { return (a[dateCol] || '9999').localeCompare(b[dateCol] || '9999'); });
-    var first = mode === 'listby' ? 1 : 0; // LIST BY's group field isn't repeated on each line
+    var first = mode === 'listby' ? 1 : 0;
     var widths = fields.map(function (f, i) { return rows.reduce(function (w, r) { return Math.max(w, r[i].length); }, 0); });
     var line = function (r) {
         return r.slice(first).map(function (v, i) { return i === r.length - first - 1 ? v : pad(v, widths[i + first]); }).join('  ');
@@ -1087,13 +988,12 @@ function reportText(mode, title, fields, records, data) {
     return lines.join('\n');
 }
 
-// Line up fields into records (one per [repeat] copy, matched by the _1, _2... copy number)
 function reportRecords(fields) {
     if (fields.every(f => f.keys.length <= 1)) return [fields.map(f => f.keys[0] || null)];
     const copyOf = (k) => (k.match(/_(\d+)(?:_name)?$/) || [])[1];
     const byCopy = new Map();
     fields.forEach((f, i) => {
-        if (f.keys.length < 2) return; // a single field outside the repeat has no copy to line up with
+        if (f.keys.length < 2) return;
         f.keys.forEach(k => {
             const n = copyOf(k);
             if (!n) return;
@@ -1104,7 +1004,6 @@ function reportRecords(fields) {
     return [...byCopy.keys()].sort((a, b) => a - b).map(n => byCopy.get(n));
 }
 
-// Puts a new component right after an existing one, wherever it sits in the form
 function insertAfter(target, newComp, rootComponents) {
     const place = (list) => {
         const i = list.indexOf(target);
@@ -1114,8 +1013,6 @@ function insertAfter(target, newComp, rootComponents) {
     place(rootComponents);
 }
 
-// Shared setup for report textareas: one visible, read-only, monospace text box that is also the saved record.
-// When conditionally hidden (e.g. unticked in a report picker) it's emptied, so an unticked report isn't saved.
 function finishReport(comp, code, problems, row, what) {
     comp.calculateValue = 'if (instance && instance.visible === false) { value = ""; } else { ' + code + ' }';
     comp.disabled = true;
@@ -1136,7 +1033,6 @@ function applySummary(comp, argsText, ctx, row) {
         `Summary: counts of ${sections.map(s => s.t.toLowerCase()).join(', ')}`, ctx);
 }
 
-// mode 'listby': "Group: Field, Field"; mode 'log': "Field, Field"
 function applyListReport(comp, mode, argsText, ctx, row) {
     const problems = [];
     let labels = splitLabels(argsText);
@@ -1155,7 +1051,6 @@ function applyListReport(comp, mode, argsText, ctx, row) {
         : `Log: one line per entry with ${fields.map(f => f.t).join(', ')}, oldest first`, ctx);
 }
 
-// Top-level "[currency: =...]" formulas (and text reports), resolved once the whole form exists (labels can point anywhere)
 function resolveFormulas(pending, rootComponents) {
     const { keysByLabel, outputKeys, compByKey, grids } = buildLabelIndex(rootComponents);
     const ctx = { keysByLabel, compByKey, rootComponents, done: new Set() };
@@ -1165,14 +1060,13 @@ function resolveFormulas(pending, rootComponents) {
             compileWarnings.push({ row, text: "Formulas inside a [repeat] or grid row aren't supported this way: ignored" });
             return;
         }
-        if (/^(SUMMARY|LIST\s+BY|LOG)\(/i.test(formula)) pdfLeaveOut.add(comp.key); // reports can't work on paper
+        if (/^(SUMMARY|LIST\s+BY|LOG)\(/i.test(formula)) pdfLeaveOut.add(comp.key);
         const summary = formula.match(/^SUMMARY\((.*)\)$/i);
         if (summary) return applySummary(comp, summary[1], ctx, row);
         const listBy = formula.match(/^LIST\s+BY\((.*)\)$/i);
         if (listBy) return applyListReport(comp, 'listby', listBy[1], ctx, row);
         const log = formula.match(/^LOG\((.*)\)$/i);
         if (log) return applyListReport(comp, 'log', log[1], ctx, row);
-        // "[textfield: =Company] Company Name": a lone lookup label copies the NAME it shows, not its saved ID
         const lone = (keysByLabel.get(formula.replace(/^"(.*)"$/, '$1').trim().toLowerCase()) || []).map(k => compByKey.get(k));
         if (lone.length === 1 && isLookup(lone[0])) {
             comp.calculateValue = lookupNameCalc(lone[0].key);
@@ -1185,18 +1079,10 @@ function resolveFormulas(pending, rootComponents) {
     });
 }
 
-// --- Clean PDF: [print] Export Clean PDF ---
-// Prints ONLY the form: copies it (with typed values, signatures as images) into an invisible print page that
-// carries the app's stylesheets, adds a title/date header, and prints that. Nothing around the form can get in,
-// whatever the app's layout. The PDF is named "Form Title - YYYY-MM-DD". Installed by the button's own HTML
-// template, so it works on new and saved entries, in Edit and View.
-// Its source lives in a hidden field's customConditional (re-checked whenever the form draws, in Edit and View),
-// not in the button's HTML: the builder previews HTML content and a huge string stretches its layout.
 function cleanPdfRun(btn) {
     var root = btn.closest('.formio-form') || btn.closest('form') || document.body;
     var clone = root.cloneNode(true);
 
-    // Carry typed values over (cloning copies markup, not what was typed)
     var src = root.querySelectorAll('input, textarea, select'), dst = clone.querySelectorAll('input, textarea, select');
     for (var i = 0; i < src.length && i < dst.length; i++) {
         var s = src[i], d = dst[i];
@@ -1205,7 +1091,6 @@ function cleanPdfRun(btn) {
         } else if (s.tagName === 'SELECT') {
             for (var j = 0; j < s.options.length; j++) if (s.options[j].selected && d.options[j]) d.options[j].setAttribute('selected', 'selected');
         } else if (s.tagName === 'TEXTAREA') {
-            // A div shows the full text; a textarea would cut long answers off
             var box = document.createElement('div');
             box.className = 'form-control clean-pdf-text';
             box.textContent = s.value;
@@ -1215,7 +1100,6 @@ function cleanPdfRun(btn) {
         }
     }
 
-    // Signatures and other drawings → images
     var srcCanvas = root.querySelectorAll('canvas'), dstCanvas = clone.querySelectorAll('canvas');
     for (var k = 0; k < srcCanvas.length && k < dstCanvas.length; k++) {
         try {
@@ -1223,10 +1107,9 @@ function cleanPdfRun(btn) {
             img.src = srcCanvas[k].toDataURL('image/png');
             img.style.maxWidth = '100%';
             dstCanvas[k].parentNode.replaceChild(img, dstCanvas[k]);
-        } catch (err) { /* tainted canvas: leave it */ }
+        } catch (err) { }
     }
 
-    // Strip clutter: buttons, the print button itself, error text
     clone.querySelectorAll('button, .no-print, .formio-errors, .invalid-feedback, .choices__button, .signature-pad-refresh').forEach(function (el) { el.remove(); });
 
     var heading = root.querySelector('.card-title, legend, h1, h2, h3');
@@ -1255,13 +1138,12 @@ function cleanPdfRun(btn) {
     doc.close();
     doc.body.appendChild(doc.importNode(clone, true));
 
-    // Print once the app's stylesheets have loaded in the print page (or after 3s at the latest)
     var links = doc.querySelectorAll('link[rel="stylesheet"]'), waiting = links.length, done = false;
     var go = function () {
         if (done) return;
         done = true;
         var oldTitle = document.title;
-        document.title = pdfName; // some browsers name the PDF after the main page
+        document.title = pdfName;
         frame.contentWindow.focus();
         frame.contentWindow.print();
         setTimeout(function () { document.title = oldTitle; }, 1000);
@@ -1275,7 +1157,6 @@ function cleanPdfRun(btn) {
 function buildCleanPdfButton(text) {
     const icon = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:6px;" aria-hidden="true">' +
         '<path d="M4 0h5.5L14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5 1.5V5h3.5L9 1.5zM5 8h6v1H5V8zm0 2h6v1H5v-1zm0 2h4v1H5v-1z"/></svg>';
-    // Installer: runs on every conditional check (cheap after the first), keeps the hidden field "shown"
     const install = 'if (!window.__formioCleanPdf) {\n' +
         '  window.__formioCleanPdf = ' + cleanPdfRun.toString() + ';\n' +
         '  document.addEventListener("click", function (e) {\n' +
@@ -1283,7 +1164,6 @@ function buildCleanPdfButton(text) {
         '    if (b) { e.preventDefault(); window.__formioCleanPdf(b); }\n' +
         '  });\n' +
         '}\nshow = true;';
-    // An invisible Field Set (no legend) keeps [print] one draggable item; no-print keeps it out of the PDF
     return {
         label: text, legend: '', key: generateSmartKey('cleanPdf'), type: 'fieldset',
         input: false, tableView: false, customClass: 'no-print',
@@ -1291,7 +1171,6 @@ function buildCleanPdfButton(text) {
             { label: 'Clean PDF Installer', key: generateSmartKey('cleanPdfInstaller'), type: 'hidden',
                 input: true, tableView: false, persistent: false, clearOnHide: false, customConditional: install },
             { label: text, key: generateSmartKey('cleanPdfButton'), type: 'htmlelement', tag: 'div', input: false, tableView: false,
-                // Only in read-only view (the card); hidden while filling out a new entry or editing
                 customConditional: 'show = !!(instance && instance.options && instance.options.readOnly);',
                 content: '<div style="text-align:right;"><button type="button" class="btn btn-outline-primary btn-sm js-clean-pdf" ' +
                     'title="Creates a clean, print-ready PDF of this form (charts and signatures included). Choose Save as PDF in the print window.">' +
@@ -1300,23 +1179,18 @@ function buildCleanPdfButton(text) {
     };
 }
 
-// --- Diagnostics: [diagnostics] Upload Diagnostics ---
-// A test photo upload plus three read-only reports (photos, device, connection) that fill themselves in from what
-// the browser shares freely (no permission prompts). Runs from a hidden field's customConditional like Clean PDF;
-// only while filling out an entry, and a saved report is never overwritten by whoever views it later.
 function diagRun(instance, keys) {
     var root = instance && instance.root;
     if (!root || (instance.options && instance.options.readOnly)) return;
     var st = window.__formioDiagState || (window.__formioDiagState = { picked: [], batch: 0 });
     var dev = root.getComponent(keys.device), con = root.getComponent(keys.connection), pho = root.getComponent(keys.photos);
-    if (!dev || !con || !pho) { // form still drawing: try again shortly
+    if (!dev || !con || !pho) {
         if (!st.retry) st.retry = setTimeout(function () { st.retry = null; window.__formioDiag(instance, keys); }, 500);
         return;
     }
     var size = function (b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
     var big = function (b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1) + ' GB' : size(b); };
 
-    // Files picked (Browse, camera or drag & drop): start the upload clock and read photo dimensions
     if (!st.listening) {
         st.listening = true;
         var note = function (list) {
@@ -1336,7 +1210,6 @@ function diagRun(instance, keys) {
         document.addEventListener('drop', function (e) { if (e.dataTransfer) note(e.dataTransfer.files); }, true);
     }
 
-    // Device + connection: once per entry
     if (!dev.dataValue && !st.gathering) {
         st.gathering = true;
         var n = navigator, ua = n.userAgent || '', uad = n.userAgentData;
@@ -1397,8 +1270,6 @@ function diagRun(instance, keys) {
         });
     }
 
-    // Photo results: rebuilt whenever an upload finishes (only when photos were picked in this session).
-    // Watches EVERY upload field in the form, whatever its type or key: any value that is a list of files with name + size.
     if (!st.picked.length) return;
     var list = [];
     root.everyComponent(function (c) {
@@ -1434,7 +1305,6 @@ function diagRun(instance, keys) {
 }
 
 function buildDiagnostics(title) {
-    // The photo field is a convenience: results come from any upload field in the form, so it can be swapped or removed
     const keys = { photos: generateSmartKey('diagPhotoResults'), device: generateSmartKey('diagDevice'), connection: generateSmartKey('diagConnection') };
     const install = 'if (!window.__formioDiag) window.__formioDiag = ' + diagRun.toString() + ';\n' +
         'window.__formioDiag(instance, ' + JSON.stringify(keys) + ');\nshow = true;';
@@ -1450,22 +1320,16 @@ function buildDiagnostics(title) {
             report('Photo Upload Results', keys.photos, 3),
             report('Device', keys.device, 11),
             report('Connection', keys.connection, 6),
-            // Last, so the reports exist when it first runs
             { label: 'Diagnostics Installer', key: generateSmartKey('diagInstaller'), type: 'hidden',
                 input: true, tableView: false, persistent: false, clearOnHide: false, customConditional: install }
         ]
     };
 }
 
-// --- All Fields: [allfields] Entry Summary ---
-// A hidden field builds an HTML summary of EVERY answered field at runtime (no keys or labels to list) and saves it
-// in the entry; a Content component shows it, so the platform's PDF prints it formatted. Fields added later are
-// caught automatically. ~showBlanks lists unanswered fields too, as "-".
-// Only <b> and <br> (plus &amp; &lt; &gt;): Stimulsoft PDFs hang on richer HTML (headings, styled divs, entities).
 function allFieldsRun(instance, showBlanks) {
     var root = instance && instance.root;
     if (!root) return '';
-    if (instance.options && instance.options.readOnly) return instance.dataValue || ''; // viewing: keep what was saved
+    if (instance.options && instance.options.readOnly) return instance.dataValue || '';
     var esc = function (t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
     var text = function (html) { var d = document.createElement('div'); d.innerHTML = String(html == null ? '' : html); return (d.textContent || '').trim(); };
     var out = [], pending = [];
@@ -1504,22 +1368,21 @@ function allFieldsRun(instance, showBlanks) {
         (list || []).forEach(function (c) {
             if (!c || !c.component || c === instance) return;
             var comp = c.component, type = comp.type;
-            if (c.visible === false) return; // hidden by a condition, or not shown
+            if (c.visible === false) return;
             var kids = (type === 'editgrid' || type === 'datagrid') ? null : c.components;
             if (Array.isArray(kids) && kids.length) {
                 var title = type === 'fieldset' ? comp.legend : (type === 'panel' ? comp.title : '');
                 heading(level, title);
                 walk(kids, title ? level + 1 : level);
-                heading(level, null); // drop this container's heading if nothing was listed under it
+                heading(level, null);
                 return;
             }
-            // Headings placed in the form ([html: h3] ..., and each [repeat] copy's "Name (1)" line) become sub-headings
             if (type === 'htmlelement' && (/^h[1-6]$/.test(comp.tag || '') || (comp.properties && comp.properties.repeatHeader))) {
                 heading(level, text(comp.content));
                 return;
             }
             if (!comp.input || ['button', 'hidden', 'content', 'htmlelement'].indexOf(type) !== -1 || comp.persistent === false) return;
-            if (/^addAnother_/.test(comp.key)) return; // [repeat]'s "Add another?" boxes
+            if (/^addAnother_/.test(comp.key)) return;
             var answer = answerOf(c);
             if (answer === null && !showBlanks) return;
             line(text(comp.label) || comp.key, answer !== null ? answer : type === 'checkbox' ? 'Not checked' : '-');
@@ -1529,7 +1392,7 @@ function allFieldsRun(instance, showBlanks) {
     return out.join('');
 }
 
-const allFieldsHidden = new WeakMap(); // [allfields] wrapper → its hidden builder (for ~showBlanks)
+const allFieldsHidden = new WeakMap();
 const allFieldsCalc = (showBlanks) =>
     'if (!window.__formioAllFields) window.__formioAllFields = ' + allFieldsRun.toString() + ';\n' +
     'value = window.__formioAllFields(instance, ' + (showBlanks ? 'true' : 'false') + ');';
@@ -1550,11 +1413,8 @@ function buildAllFields(title) {
     return wrapper;
 }
 
-// --- Charts: [chart: Labor Total, Materials Total, SUM(Ext. Price)] Cost Breakdown ---
-// A live HTML Element (refreshOnChange) drawing horizontal bars with inline styles and Bootstrap bg-* colors,
-// so it looks the same in the Preview, the app, a viewed entry and a printout.
 const CHART_COLORS = ['primary', 'success', 'info', 'secondary', 'dark', 'warning', 'danger'];
-const chartOf = new WeakMap(); // chart component → its item list text, resolved once the whole form exists
+const chartOf = new WeakMap();
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 function buildChart(title, itemsStr) {
@@ -1564,7 +1424,6 @@ function buildChart(title, itemsStr) {
     return chart;
 }
 
-// Shared bar drawing. setupJs must define `var items = [{ l: label, v: value, m: isMoney, c: bootstrapColor }]`.
 function chartHtml(title, setupJs) {
     return `{% ${setupJs}
 var total = 0, max = 0;
@@ -1583,8 +1442,6 @@ items.forEach(function (i) { i.v = Number(i.v) || 0; if (i.v > 0) { total += i.v
 {% }); %}`;
 }
 
-// "[chart: COUNT BY(Near Miss Type)] Title": one bar per choice that was picked in a grid column,
-// most frequent first, zero counts hidden. Multi-selects count each picked value.
 function resolveCountByChart(comp, target, grids, compByKey, row) {
     const { matches, col } = findGridColumn(target, grids);
     if (matches.length !== 1) {
@@ -1619,14 +1476,12 @@ function resolveCharts(pending, rootComponents) {
         const countBy = itemsStr.trim().match(/^COUNT\s+BY\(\s*"?([^")]*)"?\s*\)$/i);
         if (countBy) return resolveCountByChart(comp, countBy[1].trim(), grids, compByKey, row);
         const problems = [];
-        // Split on commas outside quotes; each item is a label, a "quoted label" or SUM(Column)
         const items = (itemsStr.match(/("[^"]*"|[^,])+/g) || []).map(s => s.trim()).filter(Boolean).map((text, i) => {
             const { expr, problems: p } = translateFormula(text, comp, keysByLabel, grids, 'data');
             problems.push(...p);
             const sum = text.match(/^SUM\(\s*"?([^")]*)"?\s*\)$/i);
             let label = sum ? sum[1].trim() : text.replace(/^"|"$/g, '');
-            // Currency formatting follows the source field (for SUM, the grid column)
-            const keyMatch = expr.match(sum ? /\br\.(\w+)\)/ : /\bdata\.(\w+)\)/); // SUM → the column, not the grid
+            const keyMatch = expr.match(sum ? /\br\.(\w+)\)/ : /\bdata\.(\w+)\)/);
             const source = keyMatch && compByKey.get(keyMatch[1]);
             if (source && !['number', 'currency'].includes(source.type)) problems.push(`"${label}" is a ${source.type}, not a number or currency field`);
             if (source && source.label) label = sum ? `${source.label} (total)` : source.label;
@@ -1641,10 +1496,6 @@ function resolveCharts(pending, rootComponents) {
     });
 }
 
-// "~showWhen: Near Miss Type = Other": show this field only when another field (by label) has that value.
-// Inside a grid row it checks the same row first. Choices match by label or value, so it works with or without @.
-// A required field that's hidden isn't validated, so "!" + showWhen = required only when shown.
-// Sets one showWhen conditional. findKeys(label) → candidate keys; getComp(key) → component; scope = hint suffix
 function setShowWhen(comp, text, row, findKeys, getComp, scope) {
     const warn = (t) => compileWarnings.push({ row, text: 'Show when: ' + t });
     const m = text.match(/^\s*"?([^"=]+?)"?\s*=\s*"?(.*?)"?\s*$/);
@@ -1666,8 +1517,6 @@ function setShowWhen(comp, text, row, findKeys, getComp, scope) {
     compileHints.push({ row, text: `Shows only when ${source.label} = ${wanted}${scope}` });
 }
 
-// Inside a [repeat]: resolved right away against the field's siblings in the group, before the copies are made.
-// The repeater then points each copy's conditional at the same copy's field.
 function showWhenInRepeat(comp, text, row, repeat) {
     const siblings = repeat.components;
     setShowWhen(comp, text, row,
@@ -1686,8 +1535,6 @@ function resolveShowWhen(pending, rootComponents) {
     });
 }
 
-// ~defaultValue on choice fields may name choices by label ("Summary Counts") or the old underscore spelling;
-// convert each to the choice's real value so nobody has to look up generated keys.
 function normalizeChoiceDefaults(list) {
     (list || []).forEach(c => {
         const choices = choicesOf(c);
@@ -1706,9 +1553,6 @@ function normalizeChoiceDefaults(list) {
     });
 }
 
-// Safety pass: every component gets a label, like the Form.io builder gives them.
-// Some platform viewers lowercase every component's label and crash on one without (blank entry card).
-// Only fills labels that are missing entirely; Content/HTML never display their label.
 const DEFAULT_LABELS = { content: 'Content', htmlelement: 'HTML' };
 function ensureLabels(list) {
     (list || []).forEach(c => {
@@ -1726,7 +1570,6 @@ function flagUnusedAsIs(def, row) {
     }
 }
 
-// Safety net: if any line throws, mark it with a ✖ and keep the last good JSON instead of failing silently
 let compilingRow = 0;
 function compileShorthand() {
     try {
@@ -1741,7 +1584,7 @@ function compileShorthand() {
 
 function compileShorthandUnsafe() {
     const lines = shorthand.session.getDocument().getAllLines();
-    const lineComps = []; // source row → component it produced (for cursor sync)
+    const lineComps = [];
     usedLookupKeys = new Set();
     compileWarnings = [];
     compileHints = [];
@@ -1750,7 +1593,7 @@ function compileShorthandUnsafe() {
     pdfPage = 'letter';
     pdfLeaveOut = new Set();
     pdfRows = new Map();
-    const pdfNotes = []; // { row, text, warn }: what each line becomes in a PDF, shown in the margin in PDF mode
+    const pdfNotes = [];
     const pendingFormulas = [];
     const pendingCharts = [];
     const pendingShowWhen = [];
@@ -1759,11 +1602,10 @@ function compileShorthandUnsafe() {
     let inBulkMode = false;
     let bulkDef = null;
     let lastFieldComponent = null;
-    let settingsTarget = null;   // component (or bulk block) that a "~" line under it applies to
-    const settingEntries = [];   // re-applied after formulas so ~ always wins over compiler defaults
+    let settingsTarget = null;
+    const settingEntries = [];
     settingTargetTypes = [];
 
-    // Bulk block settings apply to every question in the block, once the block is complete
     const applyBulkSettings = (bd) => {
         if (!bd || !bd.settings) return;
         bd.questions.forEach((q, n) => bd.settings.forEach(s => {
@@ -1779,9 +1621,8 @@ function compileShorthandUnsafe() {
         else if (parent.type === 'table') addToTable(parent, comp, currentRow);
         else parent.components.push(comp);
     };
-    const pages = []; // wizard pages from "=== Page: Name" lines
-    pageRows = new Map(); // shorthand row of each "=== Page:" line → its page panel
-    // Close the innermost container; a [repeat] becomes its copies here
+    const pages = [];
+    pageRows = new Map();
     const popContainer = () => {
         const popped = containerStack.pop();
         if (popped.type === 'repeat') unrollRepeatGroup(popped).forEach(c => pushComponent(c));
@@ -1794,15 +1635,12 @@ function compileShorthandUnsafe() {
         if (!line) {
             lastFieldComponent = null;
             settingsTarget = null;
-            // A blank line closes one container, but never a wizard page (only the next "=== Page:" does)
             if (containerStack.length > 0 && !pages.includes(containerStack[containerStack.length - 1])) popContainer();
             continue;
         }
 
         const pdfLine = line.match(/^#!\s*pdf\b\s*(.*)$/i);
         if (pdfLine) {
-            // "#! pdf": this form is a fillable PDF only (never pasted into Form.io); the margin says what changes on paper.
-            // "#! pdf long": one long page with no page breaks (tablets); "#! pdf phone": the same, phone-width (tables stack)
             pdfMode = true;
             const option = pdfLine[1].trim().toLowerCase();
             if (option === 'long' || option === 'phone') pdfPage = option;
@@ -1813,14 +1651,12 @@ function compileShorthandUnsafe() {
         }
 
         if (/^#\s/.test(line)) {
-            // "# Near Miss Log": the form's name (download file name, default favorite name); not a component
             formTitle = line.slice(1).trim();
             continue;
         }
 
         const pageMatch = line.match(/^===\s*(?:Page\s*:)?\s*(.*)$/i);
         if (pageMatch) {
-            // "=== Page: Details": a wizard page. Closes everything still open; its contents go in until the next page
             if (inBulkMode) { applyBulkSettings(bulkDef); inBulkMode = false; bulkDef = null; }
             while (containerStack.length > 0) popContainer();
             const title = pageMatch[1].trim() || 'Page ' + (pages.length + 1);
@@ -1839,7 +1675,6 @@ function compileShorthandUnsafe() {
             lastFieldComponent = null;
             if (inBulkMode) { applyBulkSettings(bulkDef); inBulkMode = false; bulkDef = null; settingsTarget = null; }
             else if (!parseComponentDef(line.substring(3).trim())) {
-                // A lone "+++" with no block open (often the opening line was mistyped): don't start a typeless block
                 compileWarnings.push({ row: i, text: 'A Bulk block must start with a type, e.g. "+++ ![radio]". This "+++" has none and no block is open, so it was skipped. Check the line that should open this block.' });
             } else {
                 inBulkMode = true;
@@ -1850,7 +1685,6 @@ function compileShorthandUnsafe() {
                 settingsTarget = bulkDef;
                 settingTargetTypes[i] = formioTypeOf(bulkDef.type);
                 flagUnusedAsIs(bulkDef, i);
-                // Text after the bracket switches on notes: "Notes?" = conditional + required, "Notes" = always + optional
                 const term = (bulkDef.label || '').trim();
                 bulkDef.notesConditional = term.endsWith('?');
                 bulkDef.notesTerm = bulkDef.notesConditional ? term.slice(0, -1).trim() : term;
@@ -1864,34 +1698,29 @@ function compileShorthandUnsafe() {
         }
 
         if (line.startsWith('~')) {
-            // ~ setting: applies to the component (or bulk block) directly above, until a blank line
             const setting = parseSettingLine(line);
             if (!setting) {
                 compileWarnings.push({ row: i, text: 'Setting format: ~name or ~name: value   (e.g. ~rows: 5)' });
             } else if (!settingsTarget) {
                 compileWarnings.push({ row: i, text: 'A ~ setting must sit under the component it belongs to, with no blank line in between' });
             } else if (setting.path === 'showWhen') {
-                // Compiler setting: inside a [repeat] it's resolved now (before the copies exist); elsewhere once the whole form exists
                 const repeat = containerStack[containerStack.length - 1];
                 if (settingsTarget === bulkDef) compileWarnings.push({ row: i, text: "~showWhen isn't supported under a +++ bulk block" });
                 else if (repeat && repeat.type === 'repeat' && repeat.components.includes(settingsTarget)) showWhenInRepeat(settingsTarget, String(setting.value), i, repeat);
                 else pendingShowWhen.push({ comp: settingsTarget, text: String(setting.value), row: i });
                 lineComps[i] = settingsTarget;
             } else if (setting.path === 'htmlElement' && allFieldsHidden.has(settingsTarget)) {
-                // [allfields] shown by an HTML Element instead of a Content component
                 const view = settingsTarget.components[1];
                 settingsTarget.components[1] = { label: view.label, key: generateSmartKey('allFieldsView'), type: 'htmlelement', tag: 'div',
                     input: false, tableView: false, refreshOnChange: true, content: view.html };
                 compileHints.push({ row: i, text: 'Shown by an HTML Element instead of a Content component' });
                 lineComps[i] = settingsTarget;
             } else if (setting.path === 'rows' && ['editgrid', 'datagrid'].includes(settingsTarget.type)) {
-                // Compiler setting for grids: blank rows in the fillable PDF's table (Form.io grids have no "rows")
                 const n = parseInt(setting.value, 10);
                 if (!(n >= 1 && n <= 200)) compileWarnings.push({ row: i, text: '~rows: a number of rows from 1 to 200' });
                 else { pdfRows.set(settingsTarget.key, n); compileHints.push({ row: i, text: `Fillable PDF: ${n} blank rows` }); }
                 lineComps[i] = settingsTarget;
             } else if (setting.path === 'showBlanks') {
-                // Compiler setting for [allfields]: list unanswered fields too
                 const hidden = allFieldsHidden.get(settingsTarget);
                 if (!hidden) compileWarnings.push({ row: i, text: '~showBlanks only applies to [allfields]' });
                 else { hidden.calculateValue = allFieldsCalc(setting.value !== false); compileHints.push({ row: i, text: 'Unanswered fields are listed as "-" (unticked checkboxes as "Not checked")' }); }
@@ -1911,7 +1740,6 @@ function compileShorthandUnsafe() {
         if (inBulkMode && bulkDef) {
             settingTargetTypes[i] = formioTypeOf(bulkDef.type);
             if (line.startsWith('- ') || line === '-') {
-                // Flag once here, not once per question below
                 const opt = line.substring(2).trim();
                 if (!opt) {
                     compileWarnings.push({ row: i, text: 'Empty choice: skipped' });
@@ -1954,7 +1782,6 @@ function compileShorthandUnsafe() {
         }
 
         if (line.startsWith('=')) {
-            // Row formula: must sit right under its [editgrid: ...] line (or another row formula)
             const grid = containerStack[containerStack.length - 1];
             if (grid && grid.type === 'editgrid') {
                 lineComps[i] = grid;
@@ -1974,11 +1801,10 @@ function compileShorthandUnsafe() {
                 const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
                 lineComps[i] = comp;
                 settingsTarget = comp;
-                settingTargetTypes[i] = allFieldsHidden.has(comp) ? 'allfields' : comp.type; // [allfields] gets its own ~ menu
+                settingTargetTypes[i] = allFieldsHidden.has(comp) ? 'allfields' : comp.type;
                 if (def.type === 'editgrid' && def.choices && comp.components.length > 5 && !pdfMode) {
                     compileWarnings.push({ row: i, text: `${comp.components.length} columns: more than 5 can get cramped in the saved-rows table` });
                 }
-                // What this line becomes on paper (shown only in PDF mode)
                 const leftOut = { chart: 'Charts', allfields: '[allfields]', diagnostics: '[diagnostics]', print: '[print]' }[def.type];
                 if (leftOut) pdfNotes.push({ row: i, warn: true, text: `${leftOut} can't work in a PDF: left out` });
                 else if (formulaOf.has(comp) && /^(SUMMARY|LIST\s+BY|LOG)\(/i.test(formulaOf.get(comp))) pdfNotes.push({ row: i, warn: true, text: "Reports can't work in a PDF: left out" });
@@ -2009,12 +1835,11 @@ function compileShorthandUnsafe() {
             settingsTarget = null;
         }
     }
-    if (inBulkMode) applyBulkSettings(bulkDef); // block left open at the end
+    if (inBulkMode) applyBulkSettings(bulkDef);
     if (pdfMode) pdfNotes.forEach(n => (n.warn ? compileWarnings : compileHints).push({ row: n.row, text: n.text }));
 
     while (containerStack.length > 0) popContainer();
     if (pages.length) {
-        // Anything before the first page (e.g. [print]) goes at the top of page 1
         const loose = rootComponents.filter(c => !pages.includes(c));
         if (loose.length) pages[0].components.unshift(...loose);
         rootComponents = pages.slice();
@@ -2022,14 +1847,13 @@ function compileShorthandUnsafe() {
     resolveFormulas(pendingFormulas, rootComponents);
     resolveCharts(pendingCharts, rootComponents);
     resolveShowWhen(pendingShowWhen, rootComponents);
-    settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false)); // ~ wins over formulas and defaults
+    settingEntries.forEach(e => applySetting(e.comp, e.setting, e.row, false));
     normalizeChoiceDefaults(rootComponents);
     ensureLabels(rootComponents);
 
     lastComponents = rootComponents;
     renderOutput();
 
-    // Resolve each line's component to its key in the output (repeat copies are suffixed _1, _2, ...)
     const outputKeys = new Set();
     const collectKeys = (list) => list.forEach(c => { outputKeys.add(c.key); childListsOf(c).forEach(collectKeys); });
     collectKeys(rootComponents);
@@ -2043,24 +1867,20 @@ function compileShorthandUnsafe() {
     scheduleSync();
 }
 
-// --- JSON output: always the whole form (wizard pages are its top-level panels) ---
 function renderOutput() {
     const list = lastComponents;
-    // Components mode: array, pasted over a "components": [ ]
-    // Component mode: one object, pasted over a whole component's schema (several top-level items get wrapped in a panel)
     let finalOutput = list;
     if (outputMode === 'component') {
         finalOutput = list.length === 1 ? list[0]
             : { title: 'Panel', label: 'Panel', key: generateSmartKey('Panel'), type: 'panel', theme: 'primary', input: false, tableView: false, components: list };
     }
-    const scrollTop = editor.session.getScrollTop(); // setValue would jump to the top
+    const scrollTop = editor.session.getScrollTop();
     settingJson = true;
     editor.setValue(JSON.stringify(finalOutput, null, 2), -1);
     settingJson = false;
     editor.session.setScrollTop(scrollTop);
 }
 
-// --- Wrapper Checkbox (checked = one { } component, unchecked = [ ] components array) ---
 let outputMode = 'components';
 try { outputMode = localStorage.getItem('outputMode') === 'component' ? 'component' : 'components'; } catch (e) {}
 
@@ -2069,20 +1889,14 @@ wrapperCheck.checked = outputMode === 'component';
 wrapperCheck.addEventListener('change', () => {
     outputMode = wrapperCheck.checked ? 'component' : 'components';
     try { localStorage.setItem('outputMode', outputMode); } catch (e) {}
-    renderOutput(); // same build, new shape: keys don't change
+    renderOutput();
 });
 
-// --- Listeners ---
-// Recompile once per batch of edits (setValue / snippet insert fire several change events)
 let compileQueued = false;
 shorthand.session.on('change', () => {
     if (compileQueued) return;
     compileQueued = true;
-    setTimeout(() => { compileQueued = false; compileShorthand(); }, 0);
-});
-document.getElementById('btn-clear').addEventListener('click', () => {
-    shorthand.setValue('', -1);
-    shorthand.focus();
+    setTimeout(() => { compileQueued = false; compileShorthand(); showFile(); rememberSession(); }, 0);
 });
 document.getElementById('btn-copy').addEventListener('click', () => {
     const text = armedPage ? JSON.stringify(armedPage.components, null, 2) : editor.getValue();
@@ -2094,174 +1908,118 @@ document.getElementById('btn-copy').addEventListener('click', () => {
     });
 });
 
-// Download: mobile → share sheet; desktop → straight to Downloads, no dialog.
-// Named after the form (first panel/field set title, or first label); the browser adds (1), (2)... if the name exists.
-document.getElementById('btn-download').addEventListener('click', async () => {
-    const jsonStr = editor.getValue();
+function formFileName() {
     const first = lastComponents[0] || {};
-    const formName = String(formTitle || first.title || first.legend || first.label || 'form_schema').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form_schema';
-    const suggestedName = formName + '.json';
+    return String(formTitle || first.title || first.legend || first.label || 'form').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'form';
+}
 
+async function downloadFile(data, name, type) {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-        || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
+        || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     if (isMobile && navigator.canShare) {
-        const file = new File([jsonStr], suggestedName, { type: 'application/json' });
+        const file = new File([data], name, { type });
         if (navigator.canShare({ files: [file] })) {
-            try { await navigator.share({ files: [file], title: suggestedName }); } catch (e) {} // dismissed
-            return;
+            try { await navigator.share({ files: [file], title: name }); return; }
+            catch (e) { if (e && e.name === 'AbortError') return; }
         }
     }
-
-    const url = URL.createObjectURL(new Blob([jsonStr], { type: 'application/json' }));
+    const url = URL.createObjectURL(new Blob([data], { type }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = suggestedName;
+    a.download = name;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
-});
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
 
-// --- Favorites Logic ---
-const favModal = document.getElementById('fav-modal');
-document.getElementById('btn-close-fav').addEventListener('click', () => favModal.classList.add('hidden'));
+document.getElementById('btn-download').addEventListener('click', () => downloadFile(editor.getValue(), formFileName() + '.json', 'application/json'));
 
-document.getElementById('btn-save-fav').addEventListener('click', () => {
-    const name = prompt("Enter a name for this favorite session:", formTitle);
-    if (!name) return;
+const fileLabel = document.getElementById('file-name');
+const fileInput = document.getElementById('file-open');
+const txtTypes = [{ description: 'Shorthand', accept: { 'text/plain': ['.txt'] } }];
+let fileHandle = null, fileName = '', savedText = '';
+
+function showFile() {
+    const dirty = shorthand.getValue() !== savedText;
+    fileLabel.textContent = (fileName || 'Untitled') + (dirty ? ' •' : '');
+    fileLabel.title = dirty ? 'Unsaved changes (Ctrl+S to save)' : 'Saved';
+}
+
+function rememberSession() {
+    try { localStorage.setItem('session', JSON.stringify({ text: shorthand.getValue(), fileName, savedText })); } catch (e) {}
+}
+
+function loadShorthand(text, name, handle) {
+    fileHandle = handle || null;
+    fileName = name || '';
+    savedText = text;
+    shorthand.setValue(text, -1);
+    shorthand.focus();
+}
+
+const okToReplace = () => {
     const text = shorthand.getValue();
-    if (!text.trim()) return alert("Shorthand is empty!");
+    return text === savedText || !text.trim() || confirm('Discard your unsaved changes?');
+};
 
-    const tx = db.transaction('favorites', 'readwrite');
-    tx.objectStore('favorites').add({ name, shorthand: text, date: new Date().toLocaleDateString() });
-    tx.oncomplete = () => {
-        const btn = document.getElementById('btn-save-fav');
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fa-solid fa-star" style="color: gold;"></i>';
-        setTimeout(() => btn.innerHTML = orig, 2000);
-    };
-});
-
-document.getElementById('btn-export-favs').addEventListener('click', () => {
-    const tx = db.transaction('favorites', 'readonly');
-    const req = tx.objectStore('favorites').getAll();
-    req.onsuccess = () => {
-        // Built-in templates ship with the app, so backups only carry your own favorites
-        const favs = req.result.filter(f => f.date !== 'System Default');
-        favs.forEach(f => delete f.id);
-        const blob = new Blob([JSON.stringify(favs, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'formio_favorites_backup.json';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-});
-
-const fileImport = document.getElementById('file-import-favs');
-document.getElementById('btn-import-favs').addEventListener('click', () => fileImport.click());
-
-fileImport.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        try {
-            const favs = JSON.parse(event.target.result);
-            if (!Array.isArray(favs)) throw new Error("Invalid format");
-            
-            // Merge: skip built-in templates and exact duplicates; same name with different content → "Name (imported)"
-            const tx = db.transaction('favorites', 'readwrite');
-            const store = tx.objectStore('favorites');
-            const existingReq = store.getAll();
-            let count = 0, skipped = 0;
-            existingReq.onsuccess = () => {
-                const existing = existingReq.result;
-                const same = new Set(existing.map(f => f.name + '\u0000' + f.shorthand));
-                const names = new Set(existing.map(f => f.name));
-                favs.forEach(f => {
-                    delete f.id;
-                    if (!f.name || !f.shorthand) return;
-                    if (f.date === 'System Default' || same.has(f.name + '\u0000' + f.shorthand)) { skipped++; return; }
-                    if (names.has(f.name)) f.name += ' (imported)';
-                    same.add(f.name + '\u0000' + f.shorthand);
-                    names.add(f.name);
-                    store.add(f);
-                    count++;
-                });
-            };
-            tx.oncomplete = () => {
-                alert(`Imported ${count} favorite${count === 1 ? '' : 's'}` + (skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'} or built-in template${skipped === 1 ? '' : 's'}.` : '.'));
-                fileImport.value = ''; // reset
-                document.getElementById('btn-list-favs').click(); // refresh list
-            };
-        } catch (err) {
-            alert("Error importing favorites. Make sure it is a valid backup file.");
-        }
-    };
-    reader.readAsText(file);
-});
-
-document.getElementById('btn-list-favs').addEventListener('click', () => {
-    const list = document.getElementById('fav-list');
-    list.innerHTML = '';
-    
-    const tx = db.transaction('favorites', 'readonly');
-    const req = tx.objectStore('favorites').getAll();
-    req.onsuccess = () => {
-        const favs = req.result;
-        if (favs.length === 0) {
-            list.innerHTML = '<p style="color: var(--text-dim);">No favorites saved yet.</p>';
+async function saveFile(saveAs) {
+    const text = shorthand.getValue();
+    const suggested = fileName || formFileName() + '.txt';
+    try {
+        if (!window.showSaveFilePicker) {
+            await downloadFile(text, suggested, 'text/plain');
+            fileName = suggested;
         } else {
-            favs.forEach(f => {
-                const div = document.createElement('div');
-                div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 4px;';
-                
-                const info = document.createElement('div');
-                info.innerHTML = `<strong>${f.name}</strong> <span style="font-size: 10px; color: var(--text-dim); margin-left: 10px;">${f.date}</span>`;
-                
-                const actions = document.createElement('div');
-                actions.style.display = 'flex';
-                actions.style.gap = '5px';
-                
-                const loadBtn = document.createElement('button');
-                loadBtn.className = 'btn-primary';
-                loadBtn.innerHTML = 'Load';
-                loadBtn.onclick = () => {
-                    shorthand.setValue(f.shorthand, -1);
-                    favModal.classList.add('hidden');
-                    shorthand.focus();
-                };
-                
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn-icon text-danger';
-                delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-                delBtn.onclick = () => {
-                    const tx = db.transaction('favorites', 'readwrite');
-                    tx.objectStore('favorites').delete(f.id);
-                    tx.oncomplete = () => div.remove();
-                };
-                
-                actions.appendChild(loadBtn);
-                actions.appendChild(delBtn);
-                div.appendChild(info);
-                div.appendChild(actions);
-                list.appendChild(div);
-            });
+            if (saveAs || !fileHandle) fileHandle = await window.showSaveFilePicker({ suggestedName: suggested, types: txtTypes });
+            const out = await fileHandle.createWritable();
+            await out.write(text);
+            await out.close();
+            fileName = fileHandle.name;
         }
-        favModal.classList.remove('hidden');
-    };
+        savedText = text;
+        showFile();
+        rememberSession();
+    } catch (e) {
+        if (e.name !== 'AbortError') alert('Could not save: ' + e.message);
+    }
+}
+
+async function openFile() {
+    if (!okToReplace()) return;
+    if (!window.showOpenFilePicker) return fileInput.click();
+    try {
+        const [handle] = await window.showOpenFilePicker({ types: txtTypes });
+        const file = await handle.getFile();
+        loadShorthand(await file.text(), file.name, handle);
+    } catch (e) {
+        if (e.name !== 'AbortError') alert('Could not open: ' + e.message);
+    }
+}
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (file) loadShorthand(await file.text(), file.name);
 });
 
-favModal.addEventListener('click', (e) => {
-    if (e.target === favModal) favModal.classList.add('hidden');
-});
+document.getElementById('btn-open').addEventListener('click', openFile);
+document.getElementById('btn-save').addEventListener('click', (e) => saveFile(e.shiftKey));
+document.getElementById('btn-clear').addEventListener('click', () => { if (okToReplace()) loadShorthand(''); });
 
-// --- Modal Snippet Logic ---
+window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k !== 's' && !(k === 'o' && !e.shiftKey)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (k === 's') saveFile(e.shiftKey); else openFile();
+}, true);
+
 const snippetModal = document.getElementById('snippet-modal');
 document.getElementById('btn-help').addEventListener('click', () => snippetModal.classList.remove('hidden'));
 document.getElementById('btn-close-modal').addEventListener('click', () => snippetModal.classList.add('hidden'));
 
-// Close modal when clicking on the dark overlay (outside the content)
 snippetModal.addEventListener('click', (e) => {
     if (e.target === snippetModal) {
         snippetModal.classList.add('hidden');
@@ -2282,8 +2040,28 @@ document.querySelectorAll('.btn-insert').forEach(btn => {
     });
 });
 
-// --- Autocomplete Logic ---
-// ${n:text} marks a placeholder: inserted selected, Tab/Enter moves to the next one in n order
+const templateList = document.createElement('div');
+templateList.className = 'snippet-category';
+templateList.innerHTML = '<h3>📋 Start from a Template</h3>';
+templates.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'snippet-row';
+    const name = document.createElement('code');
+    name.textContent = t.name;
+    const btn = document.createElement('button');
+    btn.className = 'btn-insert';
+    btn.textContent = 'Open';
+    btn.title = 'Replace the shorthand with this template';
+    btn.addEventListener('click', () => {
+        if (!okToReplace()) return;
+        snippetModal.classList.add('hidden');
+        loadShorthand(t.shorthand);
+    });
+    row.append(name, btn);
+    templateList.append(row);
+});
+document.querySelector('.snippet-columns').prepend(templateList);
+
 const quickSnippets = [
     { name: 'panel', desc: 'Panel Container', syntax: '[panel] ${1:Panel}' },
     { name: 'fieldset', desc: 'Field Set Container', syntax: '[fieldset] ${1:Field Set}' },
@@ -2328,10 +2106,9 @@ const quickSnippets = [
 
 const stripPlaceholders = (syntax) => syntax.replace(/\$\{\d+:([^}]*)\}/g, '$1');
 
-// Typing [ opens the menu; typed letters filter it; Enter/Tab inserts with the first placeholder selected
 shorthand.completers = [{
     id: 'shorthandTags',
-    identifierRegexps: [/[\[~\w.]/], // shared with the ~ settings menu so both see their full prefix
+    identifierRegexps: [/[\[~\w.]/],
     triggerCharacters: ['['],
     getCompletions(ed, session, pos, prefix, callback) {
         if (!prefix.startsWith('[')) return callback(null, []);
@@ -2344,9 +2121,8 @@ shorthand.completers = [{
         })));
     }
 }];
-initSettings(); // adds the ~ settings menu (settings.js)
+initSettings();
 
-// Enter at the end of a "- choice" line starts the next "- "; Enter on an empty "- " ends the list
 function continueList(ed) {
     if (!ed.selection.isEmpty()) return false;
     const pos = ed.getCursorPosition();
@@ -2361,7 +2137,6 @@ function continueList(ed) {
     return true;
 }
 
-// Move to the next line: reuse an empty one rather than adding another blank (blank lines close containers)
 function goToNextLine(ed) {
     const row = ed.getCursorPosition().row;
     if (row + 1 < ed.session.getLength() && ed.session.getLine(row + 1).trim() === '') {
@@ -2372,12 +2147,10 @@ function goToNextLine(ed) {
     }
 }
 
-// Tab never leaves the editor: Ace's placeholder Tab runs first; otherwise Tab goes to the next line
 shorthand.commands.removeCommand('indent');
 shorthand.commands.removeCommand('outdent');
 shorthand.commands.addCommand({ name: 'nextLine', bindKey: { win: 'Tab', mac: 'Tab' }, exec: goToNextLine });
 
-// Enter on a placeholder moves to the next one; on the last, finishes and acts like Enter at the line end
 shorthand.commands.addCommand({
     name: 'smartEnter',
     bindKey: { win: 'Return', mac: 'Return' },
@@ -2392,7 +2165,6 @@ shorthand.commands.addCommand({
     }
 });
 
-// Tab on the last placeholder: Ace parks at the snippet end; carry on to the next line like a final Tab should
 let tabFromLastStop = false;
 shorthand.commands.on('exec', (e) => {
     const m = shorthand.tabstopManager;
@@ -2405,7 +2177,6 @@ shorthand.commands.on('afterExec', (e) => {
     }
 });
 
-// --- Special Characters (garbled by Form.io when pasted from Word/PDF) ---
 const BAD_CHARS = {
     '‘': ["'", 'curly single quote'], '’': ["'", 'curly apostrophe'], '‚': ["'", 'low single quote'], '‛': ["'", 'reversed single quote'],
     '“': ['"', 'curly double quote'], '”': ['"', 'curly double quote'], '„': ['"', 'low double quote'], '‟': ['"', 'reversed double quote'],
@@ -2422,7 +2193,6 @@ const BAD_CHAR_RE = new RegExp('[' + Object.keys(BAD_CHARS).join('') + ']', 'g')
 const fixCharsBtn = document.getElementById('btn-fix-chars');
 let badCharMarkers = [];
 
-// Underline each one, flag its line in the margin (hover for names), and show a count + Fix button
 function checkBadChars() {
     const session = shorthand.session;
     badCharMarkers.forEach(id => session.removeMarker(id));
@@ -2453,16 +2223,13 @@ fixCharsBtn.addEventListener('click', () => {
     shorthand.focus();
 });
 
-// --- Cursor Sync: all three panes follow one component, centered ---
-// The source can be the shorthand cursor, a click in the Preview, or the JSON cursor (including Ctrl+F matches).
-// The other panes center on it whenever the component changes; the pane you're working in isn't moved.
 let lineKeys = [];
 let syncTimer = null;
 let jsonSyncTimer = null;
 let jsonSyncMarker = null;
 let lastSyncKey = null;
-let movingShorthand = false; // our own cursor moves shouldn't trigger a sync of their own
-let settingJson = false;     // recompiling rewrites the JSON pane; those cursor moves aren't the user's
+let movingShorthand = false;
+let settingJson = false;
 
 function scheduleSync() {
     if (movingShorthand) return;
@@ -2479,11 +2246,10 @@ function syncToCursor() {
         if (previewFrame && previewReady && layout.previewOpen) previewFrame.contentWindow.postMessage({ type: 'focus', key: armedPage.key, center: true }, '*');
         return;
     }
-    while (row >= 0 && !lineKeys[row]) row--; // blank or plain line: use the component above it
+    while (row >= 0 && !lineKeys[row]) row--;
     syncAll(row >= 0 ? lineKeys[row] : null, 'shorthand');
 }
 
-// Shorthand row for a component key; repeat copies (key_2, key_3...) map to the line of copy 1
 function rowForKey(key) {
     if (!key) return -1;
     let row = lineKeys.indexOf(key);
@@ -2511,10 +2277,9 @@ function syncAll(key, source) {
     }
 }
 
-// The component whose { ... } block contains this JSON row (skips "validate": { } and choice objects)
 function jsonKeyAtRow(row) {
     const lines = editor.session.getDocument().getAllLines();
-    let limit = lines[row] ? lines[row].search(/\S/) + 1 : 0; // only objects that open above, less indented, enclose the row
+    let limit = lines[row] ? lines[row].search(/\S/) + 1 : 0;
     for (let r = row; r >= 0; r--) {
         const line = lines[r], indent = line.search(/\S/);
         if (indent < 0 || indent >= limit || !/\{$/.test(line.trim())) continue;
@@ -2528,7 +2293,6 @@ function jsonKeyAtRow(row) {
     return null;
 }
 
-// JSON pane → others: clicking or finding (Ctrl+F) inside a component's block syncs the shorthand and Preview
 editor.selection.on('changeCursor', () => {
     if (settingJson) return;
     clearTimeout(jsonSyncTimer);
@@ -2538,26 +2302,23 @@ editor.selection.on('changeCursor', () => {
     }, 150);
 });
 
-// Preview → others: a click on a field reports its component classes; the first one that's a known key wins
 window.addEventListener('message', (e) => {
     if (!previewFrame || e.source !== previewFrame.contentWindow || !e.data || e.data.type !== 'preview-click') return;
     const key = (e.data.keys || []).find(k => rowForKey(k) !== -1);
     if (key) syncAll(key, 'preview');
 });
 
-// ⤒ / ⤓: move all three panes to the top or bottom at once (handy without Home/End keys)
 function jumpAll(toEnd) {
-    movingShorthand = true; // a jump isn't a "go to this component"
+    movingShorthand = true;
     if (toEnd) shorthand.navigateFileEnd(); else shorthand.navigateFileStart();
     shorthand.scrollToLine(toEnd ? shorthand.session.getLength() : 0, false, true, () => {});
     setTimeout(() => { movingShorthand = false; }, 0);
-    editor.scrollToLine(toEnd ? editor.session.getLength() : 0, false, true, () => {}); // scroll only: moving its cursor would sync
+    editor.scrollToLine(toEnd ? editor.session.getLength() : 0, false, true, () => {});
     if (previewFrame && previewReady && layout.previewOpen) previewFrame.contentWindow.postMessage({ type: 'scrollTo', end: toEnd }, '*');
 }
 document.getElementById('btn-jump-top').addEventListener('click', () => jumpAll(false));
 document.getElementById('btn-jump-bottom').addEventListener('click', () => jumpAll(true));
 
-// Highlight the component's whole { ... } block in the JSON pane, centering it when asked
 function highlightJson(key, center) {
     const session = editor.session;
     if (jsonSyncMarker !== null) { session.removeMarker(jsonSyncMarker); jsonSyncMarker = null; }
@@ -2576,7 +2337,6 @@ function highlightJson(key, center) {
 
 shorthand.selection.on('changeCursor', scheduleSync);
 
-// --- Copy one page: cursor on a "=== Page:" line highlights that page's [ ... ] and Copy takes just that ---
 let pageRows = new Map();
 let armedPage = null;
 let pageMarker = null;
@@ -2594,21 +2354,21 @@ function armPage(page) {
     if (keyRow === -1) return;
     const indent = ' '.repeat(lines[keyRow].search(/\S/));
     let start = keyRow;
-    while (start > 0 && lines[start] !== indent.slice(2) + '{') start--; // the page panel's own {
+    while (start > 0 && lines[start] !== indent.slice(2) + '{') start--;
     while (start < lines.length && !lines[start].startsWith(indent + '"components": [')) start++;
     let end = start;
     if (!/\[\],?$/.test(lines[start])) while (end < lines.length - 1 && lines[end] !== indent + ']' && lines[end] !== indent + '],') end++;
     if (start >= lines.length) return;
     armedPage = page;
-    // Green from the [ to the ] only: that's exactly what Copy takes
     pageMarker = session.addMarker(new Range(start, lines[start].indexOf('['), end, lines[end].lastIndexOf(']') + 1), 'page-copy', 'text');
     copyBtn.classList.add('page-armed');
     copyBtn.title = 'Copy page "' + page.title + '" [ ]';
     editor.scrollToLine(Math.max(0, start - 1), false, true, () => {});
 }
 
-// --- Pre-fill Example ---
-shorthand.setValue(`[panel] Employee Onboarding
+let restored = null;
+try { restored = JSON.parse(localStorage.getItem('session')); } catch (e) {}
+if (!restored || typeof restored.text !== 'string') restored = { text: `[panel] Employee Onboarding
 ![textfield] First Name
 ![textfield] Last Name
 [radio] Gender
@@ -2629,7 +2389,11 @@ Have you worked here before?
 Are you over 18?
 Do you need a visa sponsorship?
 +++
-`, -1);
+` };
+fileName = restored.fileName || '';
+savedText = typeof restored.savedText === 'string' ? restored.savedText : restored.text;
+shorthand.setValue(restored.text, -1);
 compileShorthand();
+showFile();
 
 

@@ -17,7 +17,11 @@ A blazing-fast, markdown-style shorthand compiler for Form.io. This tool complet
 *   **Intelligent Container Stacking:** Nest Panels, Wells, Edit Grids, Data Grids, and Repeats as deep as you like. Step out of a container simply by leaving a blank line.
 *   **Live JSON Sync:** Powered by Ace Editor, the schema updates instantly on every keystroke.
 *   **Copy & Download:** Copy the schema to your clipboard in one click, or download it as a `.json` file named after the form (its first panel's title, e.g. `Near Miss Log.json`). It saves straight to your Downloads folder with no dialog; if the name already exists the browser adds `(1)`, `(2)`, … (On mobile, the share sheet opens instead.) The **Wrapper** checkbox switches between a single `{ }` component and a `[ ]` components array to match where you're pasting.
-*   **Offline Favorites Manager:** Save your favorite shorthand sessions locally to the browser's IndexedDB. Comes pre-loaded with enterprise starter templates (True/False Quiz, General Acknowledgement, a Jobsite Hazard Assessment, a Time & Materials calculator showing chained currency formulas, a Service Record (T&M) with materials and labor grids, row totals, and SUM subtotals, a ~ Settings Showcase demonstrating `~` lines on popular components, and a How-To: Formulas & Charts walkthrough with instruction cards and live hints you can delete once learned). Export your favorites as a JSON backup and import it on another device — imports are merged into your existing favorites rather than replacing them. Built-in templates aren't exported (every copy of the app has them), and on import they're skipped along with exact duplicates; a favorite with the same name but different content is kept as "Name (imported)".
+*   **Open & Save Shorthand:** The shorthand is your form, so that's what you save: one plain `.txt` file, kept wherever you like. The JSON is rebuilt from it any time, and Copy/Download export it.
+    *   **Save** (💾 or **Ctrl+S**) names the file after `# Title`. In Chrome and Edge you pick the folder once; after that Ctrl+S overwrites the same file. **Shift+click** or **Ctrl+Shift+S** is Save As. Other browsers download the file instead.
+    *   **Open** (📂 or **Ctrl+O**) loads a `.txt` file. The file name shows in the header, with **•** when there are unsaved changes; opening another file or clearing asks first.
+    *   Your text is also kept in this browser, so a refresh or a closed tab picks up where you left off.
+*   **Templates:** The top of the Snippet Library has ready-made forms to start from (True/False Quiz, General Acknowledgement, Jobsite Hazard Assessment, Time & Materials, Service Record (T&M), How-To: Formulas & Charts, ~ Settings Showcase, Fillable PDF Showcase, Mobile PDF (Phone), Upload Diagnostics). **Open** replaces the shorthand with one.
 *   **Visual Snippet Library:** A built-in modal containing all syntax rules with 1-click insertions, organized in a 2-column masonry grid.
 *   **Live Form Preview:** A third column renders the actual form with Form.io's open-source renderer. Collapse it to a thin strip on the right edge, or open it and drag its divider to size it. `fs` lookup selects get 5 demo options in the preview only — the copied JSON is untouched. Needs an internet connection to load the renderer.
 *   **Works on Phones:** on a phone-sized screen the three panes become tabs (**Shorthand | JSON | Preview**) in a bar at the bottom, one pane at a time. Switching tabs keeps your place: the JSON and Preview open on the line you were editing.
@@ -43,7 +47,7 @@ Split a form into wizard pages with `=== Page: Name` lines:
 *   The Preview shows all pages stacked as panels.
 
 ### Form Name
-A line starting with `# ` names the form. It isn't a component (nothing is added to the JSON); it's used as the download file name and as the default name when saving a favorite.
+A line starting with `# ` names the form. It isn't a component (nothing is added to the JSON); it's used as the file name when you save the shorthand or download the JSON or PDF.
 ```text
 # Near Miss Log - Q4
 ```
@@ -191,7 +195,7 @@ Define an Edit Grid's columns in one line. While entering a row the fields stack
 *   **Grand totals:** `SUM(Column)` adds a column across every row, in any formula (`=SUM(Ext. Price) * 1.07`). If two grids share a column name, write `SUM(Grid Name.Column)`.
 *   **Labels with symbols:** put labels containing `+ - * / ( )` in quotes inside formulas, e.g. `"Travel / Equipment"`.
 
-Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in Favorites for a complete example.
+Only `$` (currency) calculations round to cents; number calculations keep their decimals. See the **Service Record (T&M)** template in the Snippet Library for a complete example.
 
 ### Text Summaries (SUMMARY)
 A read-only text box that counts choice fields — saved **as text in the entry**, so it shows in card views, exports, and Stimulsoft PDFs (unlike HTML charts):
@@ -275,9 +279,9 @@ The **PDF icon** next to Download turns the current form into a **fillable PDF**
 *   **Page size:** Letter pages are the default (they print properly). For filling on a screen, the whole form can be **one long page** with no page breaks, so it scrolls and fills like a web form (like an iPhone "Full Page" screenshot, but fillable):
     *   `#! pdf long`: Letter width, for **tablets** (an iPad is about Letter's shape).
     *   `#! pdf phone`: **4 inches wide**, for **phones**, so text reads at normal size without zooming. Fields go full width, table rows become stacked groups ("Row 1: Worker / Trade / Hours / ☐ Overtime"), and money columns get a "Totals" group.
-    *   Try the **Mobile PDF (Phone)** template in Favorites, or the `#! pdf long` / `#! pdf phone` snippets.
+    *   Try the **Mobile PDF (Phone)** template in the Snippet Library, or the `#! pdf long` / `#! pdf phone` snippets.
 *   **Lock a filled PDF:** the **lock icon** next to the PDF icon. Pick a filled-in PDF and get back `<name> - locked.pdf`: the answers become part of the page and can no longer be edited as a form. Free and in the browser; nothing is uploaded. (Like any PDF, it can still be altered with PDF editing software. For tamper-evident records, use a certified digital signature or your Form.io platform's saved entry.)
-*   **Try it:** the **Fillable PDF Showcase** template in Favorites (an equipment inspection with a checklist, a show-when field, a work-log table and repeats), or the `#! pdf` and PDF table snippets in the Snippet Library (`[pdftable` in the autocomplete).
+*   **Try it:** the **Fillable PDF Showcase** template in the Snippet Library (an equipment inspection with a checklist, a show-when field, a work-log table and repeats), or the `#! pdf` and PDF table snippets in the Snippet Library (`[pdftable` in the autocomplete).
 *   Wizard pages (`=== Page:`) each start a new PDF page. Emoji and non-Western scripts print as "?" (the PDF uses the built-in Helvetica font).
 
 ### Entry Summary (All Fields)
@@ -294,7 +298,7 @@ The **PDF icon** next to Download turns the current form into a **fillable PDF**
 *   How it's saved: a hidden component builds the summary as HTML and **saves it in the entry**; a Content component right under the heading displays it. Your platform's PDF prints the Content component, so the summary prints formatted. Viewing a saved entry shows what was saved. Needs Form.io custom JavaScript, like formulas.
 
 ### Upload Diagnostics
-`[diagnostics]` adds a field set (titled with your label, default **Upload Diagnostics**) for troubleshooting a client's uploads. The ready-made **Upload Diagnostics** template in Favorites wraps it in a full form. It uses only what the browser shares freely, so there are no permission prompts.
+`[diagnostics]` adds a field set (titled with your label, default **Upload Diagnostics**) for troubleshooting a client's uploads. The ready-made **Upload Diagnostics** template in the Snippet Library wraps it in a full form. It uses only what the browser shares freely, so there are no permission prompts.
 ```text
 [diagnostics] Device, Connection & Photo Test
 ```
