@@ -66,6 +66,32 @@ body {
 #preview-frame-wrap { flex: 1; display: flex; min-height: 0; }
 #preview-frame { flex: 1; width: 100%; border: none; background: #fff; }
 
+/* Phones: one pane at a time, chosen from a tab bar at the bottom; no dividers, no Preview strip */
+.mobile-tabs { display: none; }
+@media (max-width: 767px) {
+    body { flex-direction: column; height: 100vh; height: 100dvh; }
+    .app-layout { min-height: 0; }
+    .resizer { display: none !important; }
+    .left-pane, .editor-panel, .preview-pane {
+        display: none !important; width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; border-left: none !important;
+    }
+    body[data-tab="shorthand"] .left-pane,
+    body[data-tab="json"] .editor-panel,
+    body[data-tab="preview"] .preview-pane { display: flex !important; }
+    .preview-pane .preview-strip, #btn-preview-close { display: none !important; }
+    .preview-pane .preview-body { display: flex !important; }
+    .mobile-tabs {
+        display: flex; flex: none; background: var(--bg-surface); border-top: 1px solid var(--border);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mobile-tabs button {
+        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0 6px;
+        background: transparent; color: var(--text-muted); border-radius: 0; font-size: 0.72rem; font-weight: 600;
+    }
+    .mobile-tabs button i { margin: 0; font-size: 1.05rem; }
+    .mobile-tabs button.active { color: var(--accent); }
+}
+
 /* Pane Headers: small title line on top, toolbar line below; same height in every pane */
 .panel-header {
     flex: none; height: 76px; padding: 10px 1rem;

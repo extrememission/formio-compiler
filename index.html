@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Form.io Compiler</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -74,6 +74,13 @@
             </div>
         </section>
     </main>
+
+    <!-- PHONES: one pane at a time, picked from this bar (hidden on wider screens) -->
+    <nav class="mobile-tabs" id="mobile-tabs">
+        <button data-tab="shorthand" class="active"><i class="fa-solid fa-pen"></i><span>Shorthand</span></button>
+        <button data-tab="json"><i class="fa-solid fa-code"></i><span>JSON</span></button>
+        <button data-tab="preview"><i class="fa-solid fa-eye"></i><span>Preview</span></button>
+    </nav>
 
     <!-- Favorites Modal -->
     <div id="fav-modal" class="modal-overlay hidden">

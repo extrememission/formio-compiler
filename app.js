@@ -447,8 +447,16 @@ window.addEventListener('message', (e) => {
     if (previewFrame && e.source === previewFrame.contentWindow && e.data && e.data.type === 'preview-ready') {
         previewReady = true;
         sendPreview();
+        focusPreview();
     }
 });
+
+// Show the synced component in the Preview (it's outlined and scrolled to once the form has drawn)
+function focusPreview() {
+    if (previewFrame && previewReady && layout.previewOpen && lastSyncKey) {
+        previewFrame.contentWindow.postMessage({ type: 'focus', key: lastSyncKey, center: true }, '*');
+    }
+}
 
 document.getElementById('btn-preview-open').addEventListener('click', () => {
     if (!layout.previewWidth) {
@@ -472,6 +480,36 @@ document.getElementById('btn-preview-close').addEventListener('click', () => {
 
 applyLayout();
 if (layout.previewOpen) ensurePreviewFrame();
+
+// --- Phones: one pane at a time, picked from the tab bar at the bottom (global.css hides the rest) ---
+const phoneQuery = window.matchMedia('(max-width: 767px)');
+const tabButtons = document.querySelectorAll('#mobile-tabs button');
+function showTab(tab) {
+    document.body.dataset.tab = tab;
+    tabButtons.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'preview') {
+        layout.previewOpen = true; // not saved: the desktop layout keeps its own choice
+        ensurePreviewFrame();
+        sendPreview();
+        focusPreview();
+    }
+    // A pane that was hidden has no size: redraw it, then bring the synced line back into view
+    requestAnimationFrame(() => {
+        if (tab === 'shorthand') { shorthand.resize(true); shorthand.renderer.scrollCursorIntoView(null, 0.5); } // no focus: it would pop up the keyboard
+        if (tab === 'json') { editor.resize(true); if (lastSyncKey) highlightJson(lastSyncKey, true); }
+    });
+}
+tabButtons.forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+function applyPhoneLayout() {
+    if (phoneQuery.matches) showTab(document.body.dataset.tab || 'shorthand');
+    else {
+        delete document.body.dataset.tab;
+        try { layout.previewOpen = (JSON.parse(localStorage.getItem('layout')) || {}).previewOpen || false; } catch (e) {}
+        applyLayout(); // back to the saved desktop layout
+    }
+}
+phoneQuery.addEventListener('change', applyPhoneLayout);
+if (phoneQuery.matches) document.body.dataset.tab = 'shorthand';
 
 // --- Compiler Core Logic ---
 // Lookup selects: any [fs...] tag. The key IS the term (our app finds the endpoint from it).
