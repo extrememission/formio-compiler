@@ -78,7 +78,7 @@ const templates = [
             '![textfield] Site',
             '![date] Inspection Date',
             '![textfield] Inspector',
-            '!@[radio] Shift',
+            '![radio] Shift',
             '- Day',
             '- Night',
             '',
@@ -90,7 +90,7 @@ const templates = [
             'Emergency stop works?',
             'Fluid levels correct?',
             '+++',
-            '!@[radio] Overall Condition',
+            '![radio] Overall Condition',
             '- Good',
             '- Needs Repair',
             '- Out of Service',
@@ -122,7 +122,7 @@ const templates = [
             '![date] Report Date',
             '![textfield] Job Site',
             '![textfield] Foreman',
-            '!@[radio] Weather',
+            '![radio] Weather',
             '- Clear',
             '- Rain',
             '- Snow',
@@ -666,7 +666,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
 
     const base = { label: label, key: generateSmartKey(label), type: type, input: true, tableView: true };
     if (isRequired) base.validate = { required: true };
-    if (asIs && ['radio', 'select', 'selectboxes'].includes(type)) asIsComps.add(base);
+    if (!asIs && ['radio', 'select', 'selectboxes'].includes(type)) asIsComps.add(base);
 
     const formula = choicesStr && choicesStr.startsWith('=') ? choicesStr.slice(1).trim() : null;
     if (formula) {
@@ -1744,7 +1744,7 @@ function compileShorthandUnsafe() {
                 if (!opt) {
                     compileWarnings.push({ row: i, text: 'Empty choice: skipped' });
                 } else {
-                    if (bulkDef.asIs && bulkDef.markdownChoices.includes(opt)) {
+                    if (!bulkDef.asIs && bulkDef.markdownChoices.includes(opt)) {
                         compileWarnings.push({ row: i, text: `Duplicate choice "${opt}": two choices with the same value in one question` });
                     }
                     bulkDef.markdownChoices.push(opt);
