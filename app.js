@@ -2140,6 +2140,7 @@ const quickSnippets = [
     { name: 'email', desc: 'Email Input', syntax: '[email] ${1:Email}' },
     { name: 'radio', desc: 'Radio Buttons', syntax: '[radio] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
     { name: 'radiocolors', desc: 'Radio with colored button choices', syntax: '[radio] ${1:Question}\n~inline\n- ${2:Good} {green}\n- ${3:Needs Repair} {yellow}\n- ${4:Out of Service} {red}' },
+    { name: 'checklistcolors', desc: 'Checklist: colored Pass / Fail / N/A on each question', syntax: '+++ ![radio]\n~inline\n- Pass {green}\n- Fail {red}\n- N/A {gray}\n${1:Question 1}\n${2:Question 2}\n+++' },
     { name: 'select', desc: 'Select Dropdown', syntax: '[select] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
     { name: 'selectboxes', desc: 'Checkboxes (Multi)', syntax: '[selectboxes] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
     { name: 'fsworkers', desc: 'Worker select', syntax: '[fsworkers] ${1:Worker}' },
