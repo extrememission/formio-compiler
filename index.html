@@ -79,7 +79,11 @@
                 <h2><i class="fa-solid fa-book"></i> Component Snippet Library</h2>
                 <button id="btn-close-modal" class="btn-icon" title="Close"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="modal-body"><div class="snippet-columns">
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-pane="snippets">Snippets</button>
+                <button class="modal-tab" data-pane="defaults">Defaults</button>
+            </div>
+            <div class="modal-body"><div id="defaults-pane" class="defaults-pane" data-pane="defaults" hidden></div><div class="snippet-columns" data-pane="snippets">
                 
                 <div class="snippet-category">
                     <h3>🧱 Layout & Containers</h3>

@@ -469,6 +469,8 @@ let pdfRows = new Map();
 const formulaOf = new WeakMap();
 
 const WIDTH_WEIGHTS = { s: 1, normal: 2, l: 3, xl: 5 };
+const REPEAT_COPIES = 3;
+const PDF_GRID_ROWS = 5;
 
 function parseGridColumns(columnsStr) {
     return columnsStr.split(',').map(s => s.trim()).filter(Boolean).map(raw => {
@@ -558,7 +560,7 @@ function generateSmartKey(label) {
 
 function unrollRepeatGroup(groupDef) {
     let results = [];
-    let max = groupDef.max || 3;
+    let max = groupDef.max || REPEAT_COPIES;
     let groupKey = groupDef.key;
     
     for (let i = 1; i <= max; i++) {
@@ -641,7 +643,7 @@ function buildComponent(type, label, choicesStr, isRequired, asIs, row) {
         }
 
         if (type === 'repeat') {
-            comp.max = parseInt(choicesStr) || 3;
+            comp.max = parseInt(choicesStr) || REPEAT_COPIES;
             comp.input = false;
             comp.tableView = false;
         }
@@ -2048,6 +2050,35 @@ snippetModal.addEventListener('click', (e) => {
         snippetModal.classList.add('hidden');
     }
 });
+
+snippetModal.querySelectorAll('.modal-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        snippetModal.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t === tab));
+        snippetModal.querySelectorAll('.modal-body [data-pane]').forEach(p => { p.hidden = p.dataset.pane !== tab.dataset.pane; });
+    });
+});
+
+// Defaults chart: values come from the compiler's own constants so it can't drift
+(function buildDefaultsChart() {
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const code = (s) => '<code>' + esc(s).replace(/\n/g, '<br>') + '</code>';
+    const w = WIDTH_WEIGHTS;
+    const rows = [
+        ['Choice values (what gets saved)', 'The label text: ' + code('Day Shift'), code('@') + ' saves a generated code instead', code('@[radio] Shift')],
+        ['Choices in a row', 'One per line', code('~inline') + ' under the question', code('[radio] Shift\n~inline')],
+        ['Colored choices', 'Plain text', code('{color}') + ' after a radio or checkbox choice: ' + Object.keys(CHOICE_COLORS).join(', '), code('- Good {green}')],
+        ['Edit grid column widths', `Equal (normal = ${w.normal})`, `${code('(s)')} = ${w.s}, ${code('(l)')} = ${w.l}, ${code('(xl)')} = ${w.xl} after a column name`, code('[editgrid: Date(s), Task(xl), Hours]')],
+        ['Edit grid first row', 'Closed until "Add Another"', code('~openWhenEmpty'), code('[editgrid: Name, Phone] Contacts\n~openWhenEmpty')],
+        ['PDF table rows', `${PDF_GRID_ROWS} blank rows`, code('~rows: N') + ' (1–200) under a grid', code('~rows: 10')],
+        ['PDF page style', 'Letter pages', `A ${code('#! pdf')} line: ${code('long')} = one long page, ${code('phone')} = one long phone-width page`, code('#! pdf phone')],
+        ['Repeat copies', String(REPEAT_COPIES), code('[repeat: N]'), code('[repeat: 2] Defect')],
+        ['Show a field only when…', 'Always shown', code('~showWhen: Label = Choice'), code('~showWhen: Condition = Needs Repair')]
+    ];
+    document.getElementById('defaults-pane').innerHTML =
+        '<table class="defaults-table"><thead><tr><th>Feature</th><th>Default</th><th>Change it with</th><th>Example</th></tr></thead><tbody>' +
+        rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') +
+        '</tbody></table>';
+})();
 
 document.querySelectorAll('.btn-insert').forEach(btn => {
     btn.addEventListener('click', (e) => {

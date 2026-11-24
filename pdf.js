@@ -2,7 +2,7 @@
 'use strict';
 
 const PDF_LIB_CDN = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
-const GRID_ROWS = 5;
+const GRID_ROWS = PDF_GRID_ROWS;
 
 const WINANSI_EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 const SWAP = { '‐': '-', '‑': '-', '‒': '-', '―': '-', '−': '-', '⁃': '-',
