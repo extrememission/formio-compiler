@@ -200,7 +200,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
 
     function choicesBlock(c, opts, x, w, top, draw, make) {
         const S = 9.5, ROW = 15, BOX = 11;
-        const items = opts.map(o => { const t = T(o.label); return { o, t, tw: F.reg.widthOfTextAtSize(t, S) }; });
+        const items = opts.map(o => { const t = T(htmlToText(o.label)); return { o, t, tw: F.reg.widthOfTextAtSize(t, S) }; });
         const rowWidth = items.reduce((s, i) => s + BOX + 5 + i.tw + 16, 0);
         if (rowWidth <= w || c.inline) {
             let cx = 0, row = 0;
@@ -287,7 +287,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
             } else {
                 const def = c.defaultValue && typeof c.defaultValue === 'object' ? c.defaultValue : {};
                 bh = choicesBlock(c, opts, x, w, y - 2, draw, (o, ox, oy, s) => {
-                    checkBox(c.key + '_' + o.value, ox, oy, s, T(c.label) + ': ' + T(o.label), def[o.value] === true);
+                    checkBox(c.key + '_' + o.value, ox, oy, s, T(c.label) + ': ' + T(htmlToText(o.label)), def[o.value] === true);
                 }) + 2;
             }
         } else if (type === 'select') {

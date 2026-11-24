@@ -527,6 +527,26 @@ function addRowFormula(grid, text, row) {
 const asIsValue = (opt) => String(opt).trim().replace(/\s+/g, ' ');
 const choiceValue = (comp, opt) => asIsComps.has(comp) ? asIsValue(opt) : generateSmartKey(opt);
 
+const CHOICE_COLORS = { green: 'success', yellow: 'warning', red: 'danger', blue: 'primary', teal: 'info', gray: 'secondary', black: 'dark', white: 'light' };
+const COLOR_LABEL = /^<span class="btn btn-[a-z]+ btn-sm">([\s\S]*)<\/span>$/;
+const plainLabel = (label) => { const m = String(label == null ? '' : label).match(COLOR_LABEL); return m ? m[1] : label; };
+
+// "Good {green}" -> text "Good" (for the value) and a colored-button label
+function parseChoice(type, opt, row) {
+    const m = opt.match(/^(.*\S)\s*\{\s*(\w+)\s*\}$/);
+    if (!m) return { text: opt, label: opt };
+    const cls = CHOICE_COLORS[m[2].toLowerCase()];
+    if (!cls) {
+        compileWarnings.push({ row, text: `Unknown color {${m[2]}}: use green, yellow, red, blue, teal, gray, black or white` });
+        return { text: opt, label: opt };
+    }
+    if (type !== 'radio' && type !== 'selectboxes') {
+        compileWarnings.push({ row, text: `{${m[2]}}: colors only work on radio and selectboxes choices: ignored` });
+        return { text: m[1], label: m[1] };
+    }
+    return { text: m[1], label: `<span class="btn btn-${cls} btn-sm">${m[1]}</span>` };
+}
+
 function generateSmartKey(label) {
     if (!label) return 'comp_' + Math.random().toString(36).substring(2,6);
     const words = label.replace(/[^a-zA-Z0-9 ]/g, '').split(' ').filter(w => w);
@@ -598,7 +618,7 @@ function unrollRepeatGroup(groupDef) {
     return results;
 }
 
-function buildComponent(type, label, choicesStr, isRequired, asIs) {
+function buildComponent(type, label, choicesStr, isRequired, asIs, row) {
     const isContainer = ['panel', 'fieldset', 'editgrid', 'datagrid', 'well', 'repeat'].includes(type);
     if (isContainer) {
         let comp = { type: type, label: label, key: generateSmartKey(label), input: type.includes('grid'), tableView: type.includes('grid'), components: [] };
@@ -674,12 +694,13 @@ function buildComponent(type, label, choicesStr, isRequired, asIs) {
         choicesStr = '';
     }
 
+    const toOption = (opt) => { const c = parseChoice(type, opt, row); return { label: c.label, value: choiceValue(base, c.text) }; };
     if (type === 'radio' || type === 'selectboxes') {
-        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
+        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(toOption) : [];
         base.values = optionsArray;
     } else if (type === 'select') {
         base.dataSrc = 'values';
-        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(opt => ({ label: opt, value: choiceValue(base, opt) })) : [];
+        let optionsArray = choicesStr ? choicesStr.split(',').map(s => s.trim()).filter(s => s).map(toOption) : [];
         base.data = { values: optionsArray };
     } else if (type === 'textarea') {
         base.autoExpand = true;
@@ -770,10 +791,11 @@ function addChoice(comp, optText, row) {
     const list = comp.type === 'select'
         ? ((comp.data = comp.data || { values: [] }).values = comp.data.values || [])
         : (comp.values = comp.values || []);
-    if (asIsComps.has(comp) && list.some(o => o.value === asIsValue(optText))) {
-        compileWarnings.push({ row, text: `Duplicate choice "${optText}": two choices with the same value in one question` });
+    const { text, label } = parseChoice(comp.type, optText, row);
+    if (asIsComps.has(comp) && list.some(o => o.value === asIsValue(text))) {
+        compileWarnings.push({ row, text: `Duplicate choice "${text}": two choices with the same value in one question` });
     }
-    list.push({ label: optText, value: choiceValue(comp, optText) });
+    list.push({ label, value: choiceValue(comp, text) });
 }
 
 function buildNotes(question, term, conditional) {
@@ -908,8 +930,8 @@ function reportField(label, ctx) {
         t: first.label,
         kind: first.type === 'datetime' ? 'date' : 'value',
         keys: lookup ? keys.map(k => ensureNameCopy(ctx.compByKey.get(k), ctx.rootComponents, ctx.done)) : keys,
-        map: Object.fromEntries(choices.map(o => [o.value, o.label])),
-        choices: choices.map(o => ({ l: o.label, v: o.value }))
+        map: Object.fromEntries(choices.map(o => [o.value, plainLabel(o.label)])),
+        choices: choices.map(o => ({ l: plainLabel(o.label), v: o.value }))
     };
 }
 const splitLabels = (s) => (s.match(/("[^"]*"|[^,])+/g) || []).map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
@@ -1451,7 +1473,7 @@ function resolveCountByChart(comp, target, grids, compByKey, row) {
         return;
     }
     const grid = matches[0], column = compByKey.get(grid.cols.get(col));
-    const choices = choicesOf(column).map(o => ({ l: o.label, v: o.value }));
+    const choices = choicesOf(column).map(o => ({ l: plainLabel(o.label), v: o.value }));
     if (!choices.length) {
         compileWarnings.push({ row, text: `Chart problem: COUNT BY needs a radio or select column with choices; "${column.label}" is a ${column.type}` });
         comp.content = chartHtml(comp.label, 'var items = [];');
@@ -1509,7 +1531,7 @@ function setShowWhen(comp, text, row, findKeys, getComp, scope) {
     const choices = choicesOf(source);
     let eq = wanted;
     if (choices.length) {
-        const choice = choices.find(o => String(o.label).toLowerCase() === wanted.toLowerCase() || String(o.value) === wanted);
+        const choice = choices.find(o => String(plainLabel(o.label)).toLowerCase() === wanted.toLowerCase() || String(o.value) === wanted);
         if (!choice) return warn(`"${wanted}" isn't one of ${source.label}'s choices`);
         eq = choice.value;
     }
@@ -1540,7 +1562,7 @@ function normalizeChoiceDefaults(list) {
         const choices = choicesOf(c);
         if (choices.length && c.defaultValue !== undefined && c.defaultValue !== '') {
             const norm = (s) => String(s).replace(/[\s_]+/g, ' ').trim().toLowerCase();
-            const toValue = (v) => { const hit = choices.find(o => norm(o.label) === norm(v) || norm(o.value) === norm(v)); return hit ? hit.value : v; };
+            const toValue = (v) => { const hit = choices.find(o => norm(plainLabel(o.label)) === norm(v) || norm(o.value) === norm(v)); return hit ? hit.value : v; };
             if (c.defaultValue && typeof c.defaultValue === 'object' && !Array.isArray(c.defaultValue)) {
                 c.defaultValue = Object.fromEntries(Object.entries(c.defaultValue).map(([k, on]) => [toValue(k), on]));
             } else if (Array.isArray(c.defaultValue)) {
@@ -1744,26 +1766,27 @@ function compileShorthandUnsafe() {
                 if (!opt) {
                     compileWarnings.push({ row: i, text: 'Empty choice: skipped' });
                 } else {
-                    if (!bulkDef.asIs && bulkDef.markdownChoices.includes(opt)) {
-                        compileWarnings.push({ row: i, text: `Duplicate choice "${opt}": two choices with the same value in one question` });
+                    const choice = parseChoice(formioTypeOf(bulkDef.type), opt, i);
+                    if (!bulkDef.asIs && bulkDef.markdownChoices.some(c => c.text === choice.text)) {
+                        compileWarnings.push({ row: i, text: `Duplicate choice "${choice.text}": two choices with the same value in one question` });
                     }
-                    bulkDef.markdownChoices.push(opt);
+                    bulkDef.markdownChoices.push(choice);
                 }
                 continue;
             }
 
-            const comp = buildComponent(bulkDef.type, line, bulkDef.choices, bulkDef.required, bulkDef.asIs);
+            const comp = buildComponent(bulkDef.type, line, bulkDef.choices, bulkDef.required, bulkDef.asIs, i);
             if (bulkDef.markdownChoices.length > 0) {
                 if (comp.type === 'radio' || comp.type === 'selectboxes') {
                     comp.values = comp.values || [];
                     bulkDef.markdownChoices.forEach(opt => {
-                        comp.values.push({ label: opt, value: choiceValue(comp, opt) });
+                        comp.values.push({ label: opt.label, value: choiceValue(comp, opt.text) });
                     });
                 } else if (comp.type === 'select') {
                     comp.data = comp.data || { values: [] };
                     comp.data.values = comp.data.values || [];
                     bulkDef.markdownChoices.forEach(opt => {
-                        comp.data.values.push({ label: opt, value: choiceValue(comp, opt) });
+                        comp.data.values.push({ label: opt.label, value: choiceValue(comp, opt.text) });
                     });
                 }
             }
@@ -1771,7 +1794,7 @@ function compileShorthandUnsafe() {
             lineComps[i] = comp;
             bulkDef.questions.push(comp);
             if (bulkDef.notesTerm) {
-                const listed = (comp.type === 'select' ? comp.data.values : comp.values).map(o => o.label);
+                const listed = (comp.type === 'select' ? comp.data.values : comp.values).map(o => plainLabel(o.label));
                 if (bulkDef.notesConditional && listed.includes(bulkDef.notesTerm) && !bulkDef.flaggedDup) {
                     compileWarnings.push({ row: bulkDef.row, text: `"${bulkDef.notesTerm}" is already a listed choice; it's added automatically, so it will appear twice` });
                     bulkDef.flaggedDup = true;
@@ -1798,7 +1821,7 @@ function compileShorthandUnsafe() {
             const def = parseComponentDef(line);
             if (def) {
                 flagUnusedAsIs(def, i);
-                const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs);
+                const comp = buildComponent(def.type, def.label, def.choices, def.required, def.asIs, i);
                 lineComps[i] = comp;
                 settingsTarget = comp;
                 settingTargetTypes[i] = allFieldsHidden.has(comp) ? 'allfields' : comp.type;
@@ -2085,6 +2108,7 @@ const quickSnippets = [
     { name: 'date', desc: 'Date Only', syntax: '[date] ${1:Date}' },
     { name: 'email', desc: 'Email Input', syntax: '[email] ${1:Email}' },
     { name: 'radio', desc: 'Radio Buttons', syntax: '[radio] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
+    { name: 'radiocolors', desc: 'Radio with colored button choices', syntax: '[radio] ${1:Question}\n~inline\n- ${2:Good} {green}\n- ${3:Needs Repair} {yellow}\n- ${4:Out of Service} {red}' },
     { name: 'select', desc: 'Select Dropdown', syntax: '[select] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
     { name: 'selectboxes', desc: 'Checkboxes (Multi)', syntax: '[selectboxes] ${1:Question}\n- ${2:Choice 1}\n- ${3:Choice 2}' },
     { name: 'fsworkers', desc: 'Worker select', syntax: '[fsworkers] ${1:Worker}' },
