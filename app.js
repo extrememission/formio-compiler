@@ -177,7 +177,7 @@ shorthand.setOptions({
     useWorker: false,
     wrap: true,
     enableLiveAutocompletion: true,
-    placeholder: "Type [ to add a component..."
+    placeholder: "# Title (optional)\nType [ to add a component..."
 });
 shorthand.renderer.setScrollMargin(12, 12);
 
@@ -654,6 +654,12 @@ function buildComponent(type, label, choicesStr, isRequired, asIs, row) {
     if (type === 'html') return { type: 'htmlelement', tag: choicesStr || 'p', content: label, key: generateSmartKey('html') };
     if (type === 'chart') return buildChart(label, choicesStr);
     if (type === 'content') return { type: 'content', html: label, key: generateSmartKey('content') };
+    if (type === 'photo') return {
+        type: 'content', label: 'PHOTO PLACEHOLDER' + (label ? ': ' + label : ''), key: generateSmartKey('photoPlaceholder'), input: false, tableView: false,
+        html: '<div class="alert alert-warning"><i class="fa fa-camera"></i> <b>PHOTO PLACEHOLDER</b>' + (isRequired ? ' (required)' : '') +
+            '<br>Replace this with your platform\'s photo component.</div>',
+        properties: { photoPlaceholder: 'true', photoLabel: label || '', photoRequired: isRequired ? 'true' : 'false' }
+    };
     
     if (type === 'table') {
         let rows = 3, cols = 3, autoRows = false;
@@ -1836,6 +1842,7 @@ function compileShorthandUnsafe() {
                 else if (formulaOf.has(comp)) pdfNotes.push({ row: i, text: 'In the PDF: a plain box (the formula only calculates in Form.io)' });
                 else if (def.type.startsWith('fs') && def.type.length > 2) pdfNotes.push({ row: i, text: 'In the PDF: a plain text box (the list comes from the platform)' });
                 else if (def.type === 'file') pdfNotes.push({ row: i, text: 'In the PDF: "(Attach files separately)"' });
+                else if (def.type === 'photo') pdfNotes.push({ row: i, text: 'In the PDF: "(Attach photos separately)"' });
                 else if (def.type === 'repeat') pdfNotes.push({ row: i, text: `In the PDF: ${comp.max} copies, no "Add another?" boxes` });
                 else if (def.type === 'editgrid' || def.type === 'datagrid') pdfNotes.push({ row: i, text: 'In the PDF: a fillable table (~rows: N sets how many rows; 5 by default)' });
                 if (formulaOf.has(comp)) pendingFormulas.push({ comp, formula: formulaOf.get(comp), row: i });
@@ -2148,6 +2155,7 @@ const quickSnippets = [
     { name: 'fsequipment', desc: 'Equipment select', syntax: '[fsequipment] ${1:Equipment}' },
     { name: 'fscompany', desc: 'Company select', syntax: '[fscompany] ${1:Company}' },
     { name: 'fsdivision', desc: 'Division select', syntax: '[fsdivision] ${1:Division}' },
+    { name: 'photo', desc: 'Photo placeholder (swap in your platform\'s photo component)', syntax: '[photo]' },
     { name: 'checkbox', desc: 'Single Checkbox', syntax: '[checkbox] ${1:Checkbox}' },
     { name: 'signature', desc: 'Signature Pad', syntax: '[signature] ${1:Signature}' },
     { name: 'html', desc: 'HTML Element', syntax: '[html: ${2:h2}] ${1:Heading}' },
@@ -2160,6 +2168,39 @@ const quickSnippets = [
     { name: 'bulknotes', desc: 'Bulk + always-on notes', syntax: '+++ ![radio] ${1:Notes}\n- ${2:Choice 1}\n- ${3:Choice 2}\n${4:Question 1}\n${5:Question 2}\n+++' }
 ];
 
+// Plain words people type after [ to find a component (shown and searched in the [ list)
+const snippetAliases = {
+    panel: 'section, group',
+    repeat: 'copies',
+    editgrid: 'rows, list',
+    table: 'columns, layout',
+    sidebyside: 'columns, half',
+    textfield: 'text, short answer, name',
+    textarea: 'paragraph, long text, comments',
+    number: 'count, quantity',
+    numberrange: 'min max, rating',
+    currency: 'money, dollars, price, cost',
+    total: 'sum, calculate, formula',
+    chart: 'graph',
+    phoneNumber: 'phone, mobile, cell',
+    datetime: 'time',
+    date: 'day',
+    email: 'mail',
+    radio: 'pick one, options',
+    radiocolors: 'colors, buttons, status',
+    checklistcolors: 'pass fail, inspection',
+    select: 'dropdown, pick list, menu',
+    selectboxes: 'checkboxes, pick many',
+    checkbox: 'tick, agree, yes no',
+    signature: 'sign, sign off',
+    photo: 'camera, picture, image, upload',
+    html: 'heading, title',
+    content: 'instructions, text block',
+    print: 'pdf, export',
+    allfields: 'summary, review',
+    bulk: 'checklist, questions'
+};
+
 const stripPlaceholders = (syntax) => syntax.replace(/\$\{\d+:([^}]*)\}/g, '$1');
 
 shorthand.completers = [{
@@ -2169,7 +2210,7 @@ shorthand.completers = [{
     getCompletions(ed, session, pos, prefix, callback) {
         if (!prefix.startsWith('[')) return callback(null, []);
         callback(null, quickSnippets.map((s, i) => ({
-            caption: '[' + s.name,
+            caption: '[' + s.name + (snippetAliases[s.name] ? ' · ' + snippetAliases[s.name] : ''),
             snippet: s.syntax,
             meta: s.desc,
             docText: stripPlaceholders(s.syntax),

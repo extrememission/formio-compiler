@@ -148,6 +148,8 @@ button i { margin-right: 5px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding: 1rem 1.5rem; }
 .modal-header h2 { margin: 0; color: var(--accent); display: flex; gap: 10px; align-items: center; font-size: 1.2rem; }
 .modal-body { padding: 1.5rem; overflow-y: auto; }
+#shorthand-input .ace_placeholder { position: relative; z-index: 3; }
+.ace_editor.ace_autocomplete { width: 560px; max-width: 95vw; }
 .modal-tabs { display: flex; gap: 4px; padding: 0 1.5rem; border-bottom: 1px solid var(--border); }
 .modal-tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--text-muted); font: inherit; font-weight: 600; cursor: pointer; }
 .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }

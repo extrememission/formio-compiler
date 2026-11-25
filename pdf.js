@@ -239,6 +239,12 @@ async function buildFormPdf(PDFLib, components, title, opts) {
     function leafBody(c, x, w, top, draw) {
         const type = c.type;
 
+        if (type === 'content' && c.properties && c.properties.photoPlaceholder === 'true') {
+            const asField = { label: c.properties.photoLabel || 'Photos', validate: { required: c.properties.photoRequired === 'true' } };
+            const lh = labelBlock(asField, x, w, top, draw);
+            if (draw) txt('(Attach photos separately)', x, top - lh - 10, 9, F.ital, C.muted);
+            return lh + 13;
+        }
         if (type === 'content') return textBlock(T(htmlToText(c.html)), x, w, top, draw, F.reg, 10, C.ink);
         if (type === 'htmlelement') {
             const tag = String(c.tag || 'p').toLowerCase();
@@ -352,7 +358,7 @@ async function buildFormPdf(PDFLib, components, title, opts) {
     }
 
     function place(c, x, w) {
-        if (c.type === 'content') {
+        if (c.type === 'content' && !(c.properties && c.properties.photoPlaceholder === 'true')) {
             const cond = condText(c);
             if (cond) { flowText(cond, F.ital, 8.5, x, w, C.muted); st.y += GAP - 2; }
             const text = T(htmlToText(c.html));
